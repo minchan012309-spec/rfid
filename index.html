@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>인천해원고 프로그래밍부 RFID 행사 예약</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand-blue': '#2563EB',
+                        'brand-dark': '#0F172A',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @font-face {
+            font-family: 'Paperozi';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2');
+            font-weight: 400;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Paperozi';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-6SemiBold.woff2') format('woff2');
+            font-weight: 600;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Paperozi';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8ExtraBold.woff2') format('woff2');
+            font-weight: 800;
+            font-display: swap;
+        }
+
+        body {
+            font-family: 'Paperozi', sans-serif;
+            background-color: #F8FAFC;
+            color: #0F172A;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        .slide-active {
+            display: flex !important;
+            animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+
+        /* Floating Animation */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0px); }
+        }
+        .animate-float { animation: float 4s ease-in-out infinite; }
+
+        /* Clean Gradient Accent Blur */
+        .blur-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            opacity: 0.45;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between relative bg-slate-50 selection:bg-blue-100 selection:text-blue-900">
+
+    <!-- Top Header -->
+    <header class="w-full px-4 sm:px-8 md:px-12 py-3.5 sm:py-4 flex items-center justify-between fixed top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200/80 shadow-sm">
+        <div class="flex items-center gap-2.5 sm:gap-3 cursor-pointer" onclick="goToStep(1)">
+            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base sm:text-lg shadow-sm">
+                <i class="fa-solid fa-microchip animate-pulse"></i>
+            </div>
+            <span class="font-extrabold text-sm sm:text-base md:text-lg tracking-tight text-slate-900">
+                RFID 보물찾기 <span class="text-blue-600 font-normal opacity-80 hidden xs:inline">| 점심시간 타임어택</span>
+            </span>
+        </div>
+    </header>
+
+    <main class="flex-grow pt-20 sm:pt-24 pb-12 sm:pb-16 px-4 sm:px-6 md:px-10 flex items-center justify-center min-h-[calc(100vh-60px)] max-w-3xl md:max-w-4xl lg:max-w-5xl mx-auto w-full">
+
+        <!-- STEP 1: LANDING & INTRO -->
+        <section class="step-page slide-active w-full flex-col justify-center items-center text-center py-2 sm:py-4 relative" id="step1">
+            <div class="blur-orb bg-blue-200 w-[280px] sm:w-[420px] h-[280px] sm:h-[420px] top-[-10%] left-[-5%]"></div>
+            <div class="blur-orb bg-indigo-100 w-[220px] sm:w-[350px] h-[220px] sm:h-[350px] bottom-[0%] right-[-5%]"></div>
+
+            <!-- Clean Badge -->
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs sm:text-sm font-extrabold mb-4 sm:mb-6 animate-float shadow-sm">
+                <i class="fa-solid fa-wifi text-blue-600"></i> 아두이노 RFID 스캐너를 통한 마스터 되기
+            </div>
+
+            <h1 class="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-tight mb-4 sm:mb-6">
+                학교 곳곳의 숨겨진 <br class="sm:hidden">
+                <span class="text-blue-600 underline decoration-blue-300 decoration-wavy underline-offset-8">RFID 태그</span>를 찾아라!
+            </h1>
+
+            <p class="text-xs sm:text-sm md:text-base text-slate-600 max-w-xl md:max-w-2xl font-bold mb-6 sm:mb-8 leading-relaxed bg-white border border-slate-200/90 shadow-sm p-4 sm:p-5 rounded-2xl sm:rounded-3xl">
+                팀원과 함께 아두이노 RFID 리더기를 들고 10분 동안 스티커를 스캔하세요!<br class="hidden sm:inline">
+                가장 많은 태그를 수집한 <span class="text-blue-600 font-black">1등 ~ 5등 팀에게 상품</span>이 수여됩니다. 🎁
+            </p>
+
+            <!-- Key Info Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 w-full max-w-2xl md:max-w-3xl mb-6 sm:mb-8">
+                <div class="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm text-center hover:border-blue-300 transition-colors">
+                    <i class="fa-solid fa-stopwatch text-xl sm:text-2xl text-blue-600 mb-1.5 sm:mb-2"></i>
+                    <h4 class="font-extrabold text-[11px] sm:text-xs text-slate-500">제한 시간</h4>
+                    <p class="font-black text-xs sm:text-sm md:text-base text-slate-900 mt-0.5">10분 제한</p>
+                </div>
+                <div class="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm text-center hover:border-blue-300 transition-colors">
+                    <i class="fa-solid fa-map-pin text-xl sm:text-2xl text-emerald-600 mb-1.5 sm:mb-2"></i>
+                    <h4 class="font-extrabold text-[11px] sm:text-xs text-slate-500">목표 태그</h4>
+                    <p class="font-black text-xs sm:text-sm md:text-base text-slate-900 mt-0.5">총 30개 숨김</p>
+                </div>
+                <div class="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm text-center hover:border-blue-300 transition-colors">
+                    <i class="fa-solid fa-trophy text-xl sm:text-2xl text-amber-500 mb-1.5 sm:mb-2"></i>
+                    <h4 class="font-extrabold text-[11px] sm:text-xs text-slate-500">시상 안내</h4>
+                    <p class="font-black text-xs sm:text-sm md:text-base text-slate-900 mt-0.5">상위 1~5등</p>
+                </div>
+                <div class="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm text-center hover:border-blue-300 transition-colors">
+                    <i class="fa-solid fa-users text-xl sm:text-2xl text-purple-600 mb-1.5 sm:mb-2"></i>
+                    <h4 class="font-extrabold text-[11px] sm:text-xs text-slate-500">팀 구성</h4>
+                    <p class="font-black text-xs sm:text-sm md:text-base text-slate-900 mt-0.5">타임당 5팀 제한</p>
+                </div>
+            </div>
+
+            <button onclick="goToStep(2)" class="w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-sm sm:text-base md:text-lg font-black flex items-center justify-center gap-3 shadow-md hover:shadow-lg transition-all active:scale-[0.99]">
+                <i class="fa-solid fa-calendar-check"></i> 지금 예약하러 가기
+            </button>
+        </section>
+
+        <!-- STEP 2: DATE & TIME SLOT SELECTION -->
+        <section class="step-page hidden w-full flex-col justify-center py-2 sm:py-4" id="step2">
+            <div class="flex items-center justify-between mb-5 sm:mb-6">
+                <div>
+                    <span class="text-[11px] sm:text-xs font-extrabold text-blue-700 tracking-wider uppercase bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">STEP 01</span>
+                    <h2 class="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 mt-2">요일 및 참가 타임 선택</h2>
+                </div>
+                <button onclick="fetchLiveCapacities()" title="실시간 잔여 현황 새로고침" class="text-xs text-slate-700 font-extrabold bg-white border border-slate-200 hover:bg-slate-50 shadow-sm px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all active:scale-95">
+                    <i id="refreshIcon" class="fa-solid fa-arrows-rotate text-xs text-blue-600"></i>
+                    <span class="hidden sm:inline">실시간</span> 조회
+                </button>
+            </div>
+
+            <!-- Day Selector -->
+            <div class="mb-6 sm:mb-8">
+                <label class="block text-xs font-extrabold text-slate-500 mb-2.5 sm:mb-3 uppercase tracking-wider">1. 요일 선택</label>
+                <div class="grid grid-cols-3 gap-3 sm:gap-4" id="dayButtons">
+                    <button type="button" onclick="selectDay('수')" class="day-btn bg-white border border-slate-200 hover:border-slate-300 p-3.5 sm:p-4 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all shadow-sm" data-day="수">
+                        <span class="text-[11px] sm:text-xs text-slate-500 font-bold">점심시간</span>
+                        <span class="text-base sm:text-lg font-black text-slate-900">수요일</span>
+                    </button>
+                    <button type="button" onclick="selectDay('목')" class="day-btn bg-white border border-slate-200 hover:border-slate-300 p-3.5 sm:p-4 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all shadow-sm" data-day="목">
+                        <span class="text-[11px] sm:text-xs text-slate-500 font-bold">점심시간</span>
+                        <span class="text-base sm:text-lg font-black text-slate-900">목요일</span>
+                    </button>
+                    <button type="button" onclick="selectDay('금')" class="day-btn bg-white border border-slate-200 hover:border-slate-300 p-3.5 sm:p-4 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all shadow-sm" data-day="금">
+                        <span class="text-[11px] sm:text-xs text-slate-500 font-bold">점심시간</span>
+                        <span class="text-base sm:text-lg font-black text-slate-900">금요일</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Time Slot Selector -->
+            <div class="mb-6 sm:mb-8">
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 mb-3">
+                    <label class="block text-xs font-extrabold text-slate-500 uppercase tracking-wider">2. 타임슬롯 선택 (부당 5팀 제한)</label>
+                    <span id="selectedDayNotice" class="text-xs font-extrabold text-blue-600">요일을 선택해주세요</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4" id="timeSlotsContainer">
+                    <!-- Slot 1 -->
+                    <div class="time-slot-card bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl cursor-pointer transition-all shadow-sm flex flex-col justify-between relative overflow-hidden" onclick="selectSlot('1부')" data-slot="1부">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-black bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-lg">1부</span>
+                                <span class="slot-count-badge text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">5팀 가능</span>
+                            </div>
+                            <h3 class="text-base sm:text-lg font-black text-slate-900">11:55 ~ 12:10</h3>
+                            <p class="text-xs text-slate-500 mt-1 font-medium">4교시 종료 직후 타임어택</p>
+                        </div>
+                        <div class="mt-3 sm:mt-4">
+                            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/80">
+                                <div class="slot-progress bg-blue-600 h-full w-[0%] transition-all duration-300"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Slot 2 -->
+                    <div class="time-slot-card bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl cursor-pointer transition-all shadow-sm flex flex-col justify-between relative overflow-hidden" onclick="selectSlot('2부')" data-slot="2부">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-black bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-lg">2부</span>
+                                <span class="slot-count-badge text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">5팀 가능</span>
+                            </div>
+                            <h3 class="text-base sm:text-lg font-black text-slate-900">12:10 ~ 12:25</h3>
+                            <p class="text-xs text-slate-500 mt-1 font-medium">급식 식사 후 추천 타임</p>
+                        </div>
+                        <div class="mt-3 sm:mt-4">
+                            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/80">
+                                <div class="slot-progress bg-blue-600 h-full w-[0%] transition-all duration-300"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Slot 3 -->
+                    <div class="time-slot-card bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl cursor-pointer transition-all shadow-sm flex flex-col justify-between relative overflow-hidden" onclick="selectSlot('3부')" data-slot="3부">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-black bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-lg">3부</span>
+                                <span class="slot-count-badge text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">5팀 가능</span>
+                            </div>
+                            <h3 class="text-base sm:text-lg font-black text-slate-900">12:25 ~ 12:40</h3>
+                            <p class="text-xs text-slate-500 mt-1 font-medium">5교시 직전 피날레 챌린지</p>
+                        </div>
+                        <div class="mt-3 sm:mt-4">
+                            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/80">
+                                <div class="slot-progress bg-blue-600 h-full w-[0%] transition-all duration-300"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-4 border-t border-slate-200">
+                <button onclick="goToStep(1)" class="px-5 sm:px-6 py-2.5 sm:py-3 rounded-2xl bg-white border border-slate-200 text-xs md:text-sm font-extrabold text-slate-700 hover:bg-slate-50 shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-chevron-left"></i> 이전
+                </button>
+                <button id="step2NextBtn" onclick="validateStep2()" disabled class="px-6 sm:px-8 py-2.5 sm:py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs md:text-sm font-extrabold flex items-center gap-2 shadow-md disabled:opacity-40 disabled:cursor-not-allowed">
+                    팀 정보 입력하기 <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- STEP 3: TEAM & PARTICIPANT INFO -->
+        <section class="step-page hidden w-full flex-col justify-center py-4" id="step3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                <div>
+                    <span class="text-xs font-extrabold text-blue-700 tracking-wider uppercase bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">STEP 02</span>
+                    <h2 class="text-2xl md:text-3xl font-extrabold text-slate-900 mt-2">팀 및 참여자 정보 작성</h2>
+                </div>
+                <div id="selectedSlotSummary" class="text-xs font-extrabold text-blue-700 bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl self-start sm:self-auto shadow-sm">
+                    수요일 | 1부 선택됨
+                </div>
+            </div>
+
+            <div class="space-y-4 sm:space-y-6">
+                <!-- Team Name Input -->
+                <div class="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm">
+                    <label class="block text-xs font-extrabold text-slate-700 mb-2">
+                        <i class="fa-solid fa-flag text-blue-600 mr-1.5"></i> 팀(조) 이름 <span class="text-rose-500">* (순위표 게시용)</span>
+                    </label>
+                    <input type="text" id="teamNameInput" placeholder="예: RFID정복자들, 2학년3반에이스" maxlength="20" class="w-full px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                </div>
+
+                <!-- Leader Contact -->
+                <div class="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm">
+                    <label class="block text-xs font-extrabold text-slate-700 mb-2">
+                        <i class="fa-solid fa-phone text-blue-600 mr-1.5"></i> 대표자 전화번호 <span class="text-rose-500">* (예약 안내용)</span>
+                    </label>
+                    <input type="tel" id="leaderPhoneInput" placeholder="010-1234-5678" maxlength="13" oninput="formatPhone(this)" class="w-full px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                </div>
+
+                <!-- Dynamic Members Input -->
+                <div class="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <label class="block text-xs font-extrabold text-slate-700">
+                                <i class="fa-solid fa-users text-blue-600 mr-1.5"></i> 참여자 명단 <span class="text-rose-500">* (최소 1명 이상)</span>
+                            </label>
+                            <p class="text-[11px] text-slate-500 mt-0.5">학번과 이름을 정확히 입력해 주세요.</p>
+                        </div>
+                        <button type="button" onclick="addMemberRow()" class="px-3 sm:px-4 py-2 rounded-xl bg-blue-50 border border-blue-200 text-xs font-extrabold text-blue-700 hover:bg-blue-100 flex items-center gap-1.5 shrink-0 transition-colors shadow-sm">
+                            <i class="fa-solid fa-user-plus"></i> 팀원 추가
+                        </button>
+                    </div>
+
+                    <div id="membersContainer" class="space-y-3">
+                        <!-- Default Row 1 (Leader) -->
+                        <div class="member-row flex items-center gap-2 sm:gap-3">
+                            <span class="w-8 h-8 rounded-xl bg-blue-100 text-xs font-black text-blue-700 flex items-center justify-center shrink-0">1</span>
+                            <input type="text" placeholder="학번 (예: 20315)" class="member-student-id w-1/2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                            <input type="text" placeholder="이름 (예: 홍길동)" class="member-name w-1/2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                            <button type="button" onclick="removeMemberRow(this)" class="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 flex items-center justify-center shrink-0 disabled:opacity-30 transition-all" disabled>
+                                <i class="fa-solid fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-6 mt-4 border-t border-slate-200">
+                <button onclick="goToStep(2)" class="px-6 py-3 rounded-2xl bg-white border border-slate-200 text-xs md:text-sm font-extrabold text-slate-700 hover:bg-slate-50 shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-chevron-left"></i> 이전
+                </button>
+                <button onclick="validateStep3()" class="px-8 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs md:text-sm font-extrabold flex items-center gap-2 shadow-md">
+                    동의 및 유의사항 확인 <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- STEP 4: TERMS & AGREEMENT -->
+        <section class="step-page hidden w-full flex-col justify-center py-4" id="step4">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <span class="text-xs font-extrabold text-purple-700 tracking-wider uppercase bg-purple-50 border border-purple-200 px-3 py-1 rounded-full">STEP 03</span>
+                    <h2 class="text-2xl md:text-3xl font-extrabold text-slate-900 mt-2">약관 동의 및 예약 확정</h2>
+                </div>
+                <div class="text-xs text-purple-700 font-extrabold bg-purple-50 border border-purple-200 px-4 py-2 rounded-xl shadow-sm">
+                    최종 단계
+                </div>
+            </div>
+
+            <div class="space-y-6 mb-8">
+                <!-- Consent 1: Personal Info -->
+                <div class="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm cursor-pointer hover:border-blue-300 transition-all" onclick="toggleCheckbox('privacyAgree')">
+                    <div class="flex items-start gap-4">
+                        <div class="mt-1">
+                            <input type="checkbox" id="privacyAgree" class="w-5 h-5 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" onclick="event.stopPropagation()">
+                        </div>
+                        <div class="flex-grow">
+                            <h4 class="text-sm font-extrabold text-slate-900 mb-1">
+                                [필수] 개인정보 수집 및 이용 동의
+                            </h4>
+                            <p class="text-xs text-slate-600 leading-relaxed font-medium">
+                                - 수집 목적: 교내 RFID 보물찾기 챌린지 참가 등록, 안내 및 순위표 게시<br>
+                                - 수집 항목: 팀 이름, 대표자 전화번호, 참여 학생 학번 및 성명<br>
+                                - 보유 기간: 행사 종료 및 상품 지급 후 즉시 파기
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Consent 2: Equipment Care & Penalty -->
+                <div class="p-6 rounded-3xl bg-white border border-rose-200 shadow-sm cursor-pointer hover:border-rose-300 transition-all" onclick="toggleCheckbox('deviceAgree')">
+                    <div class="flex items-start gap-4">
+                        <div class="mt-1">
+                            <input type="checkbox" id="deviceAgree" class="w-5 h-5 rounded text-rose-600 border-slate-300 focus:ring-rose-500 cursor-pointer" onclick="event.stopPropagation()">
+                        </div>
+                        <div class="flex-grow">
+                            <h4 class="text-sm font-extrabold text-rose-700 mb-1 flex items-center gap-1.5">
+                                <i class="fa-solid fa-triangle-exclamation text-rose-500"></i> [필수] RFID 리더기 파손 및 미반납 불이익 안내 동의
+                            </h4>
+                            <p class="text-xs text-slate-600 leading-relaxed font-medium">
+                                - 아두이노 RFID 리더기 기기는 정밀 전자 장비이므로 고의적 파손/던짐/물에 적심 금지<br>
+                                - 10분 경기 시간 종료 후 즉시 본부(스태프)에 기기를 반납하지 않거나 미반납 시 <strong>챌린지 실격 처리 및 순위 몰수</strong>의 불이익이 발생할 수 있습니다.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-4 border-t border-slate-200">
+                <button onclick="goToStep(3)" class="px-6 py-3 rounded-2xl bg-white border border-slate-200 text-xs md:text-sm font-extrabold text-slate-700 hover:bg-slate-50 shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-chevron-left"></i> 이전
+                </button>
+                <button onclick="submitReservation()" class="px-10 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-black flex items-center gap-2 shadow-md">
+                    <i class="fa-solid fa-check-double"></i> 예약 완료하기
+                </button>
+            </div>
+        </section>
+
+        <!-- STEP 5: RESERVATION COMPLETED TICKET -->
+        <section class="step-page hidden w-full flex-col justify-center items-center py-4" id="step5">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 rounded-2xl bg-emerald-100 border border-emerald-200 text-emerald-600 flex items-center justify-center text-3xl font-extrabold mx-auto mb-3 shadow-sm animate-bounce">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900">예약이 완료되었습니다!</h2>
+                <p class="text-xs text-slate-500 font-bold mt-1">지정된 점심시간에 맞춰 리더기 수령 본부로 이동해 주세요.</p>
+            </div>
+
+            <!-- Clean Ticket Card -->
+            <div class="w-full max-w-md md:max-w-lg bg-white border border-slate-200 shadow-md p-6 sm:p-8 rounded-3xl sm:rounded-[2rem] relative overflow-hidden my-2 sm:my-4">
+                <div class="flex items-center justify-between border-b border-slate-200 pb-4 mb-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-ticket text-blue-600 text-lg"></i>
+                        <span class="font-extrabold text-xs sm:text-sm text-slate-900 tracking-wider">CHALLENGE TICKET</span>
+                    </div>
+                    <span id="resTicketCode" class="font-mono font-black text-xs text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">#RF-9823</span>
+                </div>
+
+                <div class="space-y-3 text-xs font-bold text-slate-700">
+                    <div class="flex justify-between items-center bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                        <span class="text-slate-500">예약 일시</span>
+                        <span id="ticketDateTime" class="text-slate-900 font-black">수요일 1부 (11:55 ~ 12:10)</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                        <span class="text-slate-500">팀 이름</span>
+                        <span id="ticketTeamName" class="text-blue-600 font-black">RFID정복자들</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                        <span class="text-slate-500">대표자 연락처</span>
+                        <span id="ticketPhone" class="text-slate-900">010-1234-5678</span>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                        <span class="text-slate-500 block mb-1">참여자 명단</span>
+                        <div id="ticketMembers" class="text-slate-900 font-medium space-y-0.5">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 pt-4 border-t border-dashed border-slate-200 text-center text-[11px] text-slate-500 font-bold">
+                    <i class="fa-solid fa-clock-rotate-left text-blue-600 mr-1"></i> 시작 3분 전 본부에서 대표자 출석 확인 필수
+                </div>
+            </div>
+
+            <div class="flex gap-4 mt-4">
+                <button onclick="window.location.reload()" class="px-6 py-3 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-xs font-extrabold text-slate-700 flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-rotate-right"></i> 처음으로 돌아가기
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // --- State Variables ---
+        let currentStep = 1;
+        let selectedDay = null;
+        let selectedSlot = null;
+        
+        // Google Apps Script Webhook URL
+        const WEBHOOK_URL = 'https://script.google.com/a/macros/gclass.ice.go.kr/s/AKfycbyMVkj5t01-9I9GTy1dfavO1a1MMSMv1r9rMxAb2IME3pfAxteIcxF9hn9EgfOwtHG_xA/exec';
+
+        // Slot capacity memory storage
+        let slotCapacities = {
+            "수": { "1부": 0, "2부": 0, "3부": 0 },
+            "목": { "1부": 0, "2부": 0, "3부": 0 },
+            "금": { "1부": 0, "2부": 0, "3부": 0 }
+        };
+
+        const slotTimes = {
+            "1부": "11:55 ~ 12:10",
+            "2부": "12:10 ~ 12:25",
+            "3부": "12:25 ~ 12:40"
+        };
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            localStorage.removeItem('rfid_slot_capacities');
+            fetchLiveCapacities();
+        });
+
+        // --- Fetch Realtime Capacity from Google Sheet ---
+        async function fetchLiveCapacities() {
+            if (!WEBHOOK_URL) return;
+
+            const icon = document.getElementById('refreshIcon');
+            if (icon) icon.classList.add('fa-spin');
+
+            try {
+                const response = await fetch(WEBHOOK_URL, { method: 'GET' });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.capacities) {
+                        slotCapacities = data.capacities;
+                        if (selectedDay) {
+                            updateSlotUI();
+                        }
+                    }
+                }
+            } catch (err) {
+                console.log('실시간 잔여 수량 동기화 참고:', err);
+            } finally {
+                if (icon) icon.classList.remove('fa-spin');
+            }
+        }
+
+        // --- Navigation ---
+        function goToStep(stepNum) {
+            currentStep = stepNum;
+            document.querySelectorAll('.step-page').forEach(page => {
+                page.classList.remove('slide-active');
+                page.classList.add('hidden');
+            });
+
+            const targetPage = document.getElementById(`step${stepNum}`);
+            if (targetPage) {
+                targetPage.classList.remove('hidden');
+                targetPage.classList.add('slide-active');
+            }
+
+            if (stepNum === 2) {
+                fetchLiveCapacities();
+            }
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // --- Step 2: Day & Slot Logic ---
+        function selectDay(dayStr) {
+            selectedDay = dayStr;
+            selectedSlot = null;
+
+            document.querySelectorAll('.day-btn').forEach(btn => {
+                if (btn.getAttribute('data-day') === dayStr) {
+                    btn.classList.add('border-blue-600', 'bg-blue-50/60', 'ring-2', 'ring-blue-500/20');
+                    btn.classList.remove('border-slate-200', 'bg-white', 'hover:border-slate-300');
+                } else {
+                    btn.classList.remove('border-blue-600', 'bg-blue-50/60', 'ring-2', 'ring-blue-500/20');
+                    btn.classList.add('border-slate-200', 'bg-white', 'hover:border-slate-300');
+                }
+            });
+
+            document.getElementById('selectedDayNotice').innerText = `${dayStr}요일 점심시간 선택됨`;
+            updateSlotUI();
+            checkStep2Validation();
+        }
+
+        function updateSlotUI() {
+            if (!selectedDay) return;
+
+            const dayData = slotCapacities[selectedDay] || { "1부": 0, "2부": 0, "3부": 0 };
+
+            document.querySelectorAll('.time-slot-card').forEach(card => {
+                const slotName = card.getAttribute('data-slot');
+                const bookedCount = dayData[slotName] || 0;
+                const remaining = Math.max(0, 5 - bookedCount);
+
+                const countBadge = card.querySelector('.slot-count-badge');
+                const progressBar = card.querySelector('.slot-progress');
+
+                const fillPct = Math.min(100, (bookedCount / 5) * 100);
+                progressBar.style.width = `${fillPct}%`;
+
+                if (remaining === 0) {
+                    countBadge.innerText = "마감됨 (5/5)";
+                    countBadge.className = "slot-count-badge text-xs font-extrabold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200";
+                    card.classList.add('opacity-50', 'pointer-events-none');
+                } else {
+                    countBadge.innerText = `${remaining}팀 가능 (${bookedCount}/5)`;
+                    countBadge.className = "slot-count-badge text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200";
+                    card.classList.remove('opacity-50', 'pointer-events-none');
+                }
+
+                if (selectedSlot === slotName) {
+                    card.classList.add('border-blue-600', 'bg-blue-50/30', 'ring-2', 'ring-blue-500/20');
+                    card.classList.remove('border-slate-200', 'bg-white');
+                } else {
+                    card.classList.remove('border-blue-600', 'bg-blue-50/30', 'ring-2', 'ring-blue-500/20');
+                    card.classList.add('border-slate-200', 'bg-white');
+                }
+            });
+        }
+
+        function selectSlot(slotStr) {
+            if (!selectedDay) {
+                alert('먼저 요일을 선택해주세요!');
+                return;
+            }
+            selectedSlot = slotStr;
+            updateSlotUI();
+            checkStep2Validation();
+        }
+
+        function checkStep2Validation() {
+            const nextBtn = document.getElementById('step2NextBtn');
+            if (selectedDay && selectedSlot) {
+                nextBtn.disabled = false;
+            } else {
+                nextBtn.disabled = true;
+            }
+        }
+
+        function validateStep2() {
+            if (!selectedDay || !selectedSlot) return;
+            document.getElementById('selectedSlotSummary').innerText = `${selectedDay}요일 | ${selectedSlot} (${slotTimes[selectedSlot]})`;
+            goToStep(3);
+        }
+
+        // --- Step 3: Dynamic Members & Phone Format ---
+        function formatPhone(input) {
+            let val = input.value.replace(/[^0-9]/g, '');
+            if (val.length > 3 && val.length <= 7) {
+                val = val.substring(0, 3) + '-' + val.substring(3);
+            } else if (val.length > 7) {
+                val = val.substring(0, 3) + '-' + val.substring(3, 7) + '-' + val.substring(7, 11);
+            }
+            input.value = val;
+        }
+
+        function addMemberRow() {
+            const container = document.getElementById('membersContainer');
+            const rowCount = container.children.length + 1;
+
+            if (rowCount > 5) {
+                alert('한 팀당 최대 5명까지 등록 가능합니다.');
+                return;
+            }
+
+            const row = document.createElement('div');
+            row.className = 'member-row flex items-center gap-2 sm:gap-3 animate-fadeIn';
+            row.innerHTML = `
+                <span class="w-8 h-8 rounded-xl bg-blue-100 text-xs font-black text-blue-700 flex items-center justify-center shrink-0">${rowCount}</span>
+                <input type="text" placeholder="학번 (예: 20316)" class="member-student-id w-1/2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                <input type="text" placeholder="이름 (예: 김철수)" class="member-name w-1/2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                <button type="button" onclick="removeMemberRow(this)" class="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 flex items-center justify-center shrink-0 transition-all">
+                    <i class="fa-solid fa-trash-can text-xs"></i>
+                </button>
+            `;
+            container.appendChild(row);
+            updateMemberRowNumbers();
+        }
+
+        function removeMemberRow(btn) {
+            const container = document.getElementById('membersContainer');
+            if (container.children.length <= 1) return;
+            btn.closest('.member-row').remove();
+            updateMemberRowNumbers();
+        }
+
+        function updateMemberRowNumbers() {
+            const container = document.getElementById('membersContainer');
+            Array.from(container.children).forEach((row, idx) => {
+                row.querySelector('span').innerText = idx + 1;
+                const delBtn = row.querySelector('button');
+                if (idx === 0) {
+                    delBtn.disabled = (container.children.length === 1);
+                }
+            });
+        }
+
+        function validateStep3() {
+            const teamName = document.getElementById('teamNameInput').value.trim();
+            const phone = document.getElementById('leaderPhoneInput').value.trim();
+
+            if (!teamName) {
+                alert('팀 이름을 입력해 주세요.');
+                document.getElementById('teamNameInput').focus();
+                return;
+            }
+
+            if (!phone || phone.length < 12) {
+                alert('대표자 전화번호를 올바르게 입력해 주세요.');
+                document.getElementById('leaderPhoneInput').focus();
+                return;
+            }
+
+            const memberRows = document.querySelectorAll('.member-row');
+            let hasValidMember = false;
+            for (let row of memberRows) {
+                const sid = row.querySelector('.member-student-id').value.trim();
+                const name = row.querySelector('.member-name').value.trim();
+                if (sid && name) {
+                    hasValidMember = true;
+                }
+            }
+
+            if (!hasValidMember) {
+                alert('최소 1명 이상의 참여자 학번과 이름을 입력해 주세요.');
+                return;
+            }
+
+            goToStep(4);
+        }
+
+        // --- Step 4: Consent & Submission ---
+        function toggleCheckbox(id) {
+            const cb = document.getElementById(id);
+            cb.checked = !cb.checked;
+        }
+
+        function submitReservation() {
+            const privacy = document.getElementById('privacyAgree').checked;
+            const device = document.getElementById('deviceAgree').checked;
+
+            if (!privacy || !device) {
+                alert('모든 필수 안내 사항 및 동의란에 체크해 주세요.');
+                return;
+            }
+
+            const teamName = document.getElementById('teamNameInput').value.trim();
+            const phone = document.getElementById('leaderPhoneInput').value.trim();
+
+            // Collect Members
+            const membersList = [];
+            document.querySelectorAll('.member-row').forEach(row => {
+                const sid = row.querySelector('.member-student-id').value.trim();
+                const name = row.querySelector('.member-name').value.trim();
+                if (sid && name) {
+                    membersList.push({ studentId: sid, name: name });
+                }
+            });
+
+            // Local cache increment
+            if (!slotCapacities[selectedDay]) slotCapacities[selectedDay] = {};
+            slotCapacities[selectedDay][selectedSlot] = (slotCapacities[selectedDay][selectedSlot] || 0) + 1;
+
+            // Generate Ticket Code
+            const randomCode = '#RF-' + Math.floor(1000 + Math.random() * 9000);
+
+            // Populate Ticket View
+            document.getElementById('resTicketCode').innerText = randomCode;
+            document.getElementById('ticketDateTime').innerText = `${selectedDay}요일 ${selectedSlot} (${slotTimes[selectedSlot]})`;
+            document.getElementById('ticketTeamName').innerText = teamName;
+            document.getElementById('ticketPhone').innerText = phone;
+
+            const membersContainer = document.getElementById('ticketMembers');
+            membersContainer.innerHTML = membersList.map(m => `<div>• ${m.studentId} ${m.name}</div>`).join('');
+
+            // Dispatch payload to Google Apps Script Web App
+            if (WEBHOOK_URL) {
+                const payload = {
+                    code: randomCode,
+                    day: selectedDay,
+                    slot: selectedSlot,
+                    timeStr: slotTimes[selectedSlot],
+                    teamName: teamName,
+                    leaderPhone: phone,
+                    membersStr: membersList.map(m => `${m.studentId} ${m.name}`).join(', ')
+                };
+
+                fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                }).then(() => {
+                    console.log('Successfully posted data to Google Apps Script');
+                    setTimeout(fetchLiveCapacities, 1200);
+                }).catch(err => console.log('Webhook Send Error:', err));
+            }
+
+            goToStep(5);
+        }
+    </script>
+</body>
+</html>
