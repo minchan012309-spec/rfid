@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RFID 보물찾기 챌린지 - 실시간 대시보드 & 패들렛 관리자</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand-blue': '#2563EB',
+                        'brand-dark': '#0F172A',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @font-face {
+            font-family: 'Paperozi';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2');
+            font-weight: 400;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Paperozi';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-6SemiBold.woff2') format('woff2');
+            font-weight: 600;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Paperozi';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8ExtraBold.woff2') format('woff2');
+            font-weight: 800;
+            font-display: swap;
+        }
+
+        body {
+            font-family: 'Paperozi', sans-serif;
+            background-color: #F8FAFC;
+            color: #0F172A;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+
+        .clean-card {
+            background-color: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+        }
+
+        .padlet-card {
+            transition: all 0.2s ease-in-out;
+            background-color: #FFFFFF;
+            border: 2px solid #E2E8F0;
+        }
+
+        .padlet-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+        }
+
+        .gold-podium { background: #FFFFFF; border: 2px solid #F59E0B; }
+        .silver-podium { background: #FFFFFF; border: 1.5px solid #94A3B8; }
+        .bronze-podium { background: #FFFFFF; border: 1.5px solid #D97706; }
+
+        @keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        .animate-marquee {
+            display: inline-block;
+            white-space: nowrap;
+            animation: marquee 25s linear infinite;
+        }
+
+        body.tv-mode-active {
+            background-color: #FFFFFF !important;
+            overflow: hidden;
+        }
+
+        body.tv-mode-active .tv-stage-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: calc(100vh - 65px - 45px);
+            padding: 1.25rem 2rem;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between bg-slate-50 text-slate-900 transition-colors duration-200">
+
+    <header class="w-full px-4 md:px-8 py-3 bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-slate-900 text-amber-400 flex items-center justify-center font-bold text-lg shadow-xs">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <div>
+                    <h1 class="font-black text-base md:text-xl text-slate-900 tracking-tight flex items-center gap-2">
+                        RFID 보물찾기 챌린지 
+                        <span id="headerViewBadge" class="text-blue-600 font-extrabold text-xs bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100">
+                            LIVE DASHBOARD
+                        </span>
+                    </h1>
+                    <p class="text-xs text-slate-400 font-semibold hidden md:block">스프레드시트 B,C,D,E,G열 자동 연동 | 실시간 성적 수집 시스템</p>
+                </div>
+            </div>
+
+            <!-- Navigation Switcher & Live Clock -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <div class="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <button id="navDashboardBtn" onclick="switchView('dashboard')" class="px-3.5 py-1.5 rounded-lg text-xs font-black transition-all bg-white text-blue-600 shadow-xs flex items-center gap-1.5">
+                        <i class="fa-solid fa-chart-line"></i>
+                        <span>대시보드</span>
+                    </button>
+                    <button id="navAdminBtn" onclick="requestAdminAccess()" class="px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all text-slate-500 hover:text-slate-900 flex items-center gap-1.5">
+                        <i class="fa-solid fa-lock text-amber-500" id="adminLockIcon"></i>
+                        <span>행사 진행자 제어실</span>
+                        <span id="teamsLoadedBadge" class="hidden bg-emerald-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-black">시트연동</span>
+                    </button>
+                </div>
+
+                <div class="hidden sm:flex bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 font-mono text-slate-800 text-xs font-black items-center">
+                    <i class="fa-regular fa-clock text-blue-600 mr-1.5"></i>
+                    <span id="liveClock">00:00:00</span>
+                </div>
+
+                <!-- TV Mode Toggle -->
+                <button onclick="toggleTvMode()" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold flex items-center gap-1.5 transition-all">
+                    <i class="fa-solid fa-tv text-amber-400"></i>
+                    <span class="hidden md:inline">현장 TV 모드</span>
+                </button>
+            </div>
+
+        </div>
+    </header>
+
+    <main id="dashboardView" class="tv-stage-container flex-grow p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full transition-opacity duration-200">
+
+        <!-- Stat Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-5">
+            <div class="clean-card rounded-2xl p-4 flex items-center gap-3.5">
+                <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg font-bold shrink-0 border border-blue-100">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <div>
+                    <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">참가 팀 수 (시트연동)</p>
+                    <p id="statTotalTeams" class="text-lg md:text-xl font-black text-slate-900">0팀</p>
+                </div>
+            </div>
+
+            <div class="clean-card rounded-2xl p-4 flex items-center gap-3.5">
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg font-bold shrink-0 border border-amber-100">
+                    <i class="fa-solid fa-microchip"></i>
+                </div>
+                <div>
+                    <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">최대 태그 수집</p>
+                    <p id="statMaxTags" class="text-lg md:text-xl font-black text-slate-900">0개 / 30개</p>
+                </div>
+            </div>
+
+            <div class="clean-card rounded-2xl p-4 flex items-center gap-3.5">
+                <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg font-bold shrink-0 border border-emerald-100">
+                    <i class="fa-solid fa-stopwatch"></i>
+                </div>
+                <div>
+                    <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">최단 완료 시간</p>
+                    <p id="statBestTime" class="text-lg md:text-xl font-black text-slate-900">--:--</p>
+                </div>
+            </div>
+
+            <div class="clean-card rounded-2xl p-4 flex items-center gap-3.5">
+                <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg font-bold shrink-0 border border-indigo-100">
+                    <i class="fa-solid fa-crown"></i>
+                </div>
+                <div>
+                    <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">현재 선두 팀</p>
+                    <p id="statLeaderTeam" class="text-lg md:text-xl font-black text-blue-600 truncate">기록 없음</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex items-center justify-between gap-4 mb-5">
+            <div class="flex items-center gap-1.5 bg-slate-200/60 p-1 rounded-xl">
+                <button onclick="filterDay('ALL')" class="day-filter-btn px-4 py-1.5 rounded-lg text-xs font-black transition-all bg-white text-blue-600 shadow-xs" data-day="ALL">전체 순위</button>
+                <button onclick="filterDay('수')" class="day-filter-btn px-4 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-900 transition-all" data-day="수">수요일</button>
+                <button onclick="filterDay('목')" class="day-filter-btn px-4 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-900 transition-all" data-day="목">목요일</button>
+                <button onclick="filterDay('금')" class="day-filter-btn px-4 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-900 transition-all" data-day="금">금요일</button>
+            </div>
+
+            <div class="hidden sm:flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                <i class="fa-solid fa-circle-info text-blue-600"></i>
+                정렬 기준: 1순위 태그 개수(다득점) ➔ 2순위 소요 시간(최단)
+            </div>
+        </div>
+
+        <!-- TOP 3 PODIUM -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" id="podiumContainer">
+            <!-- Dynamic Podium generated by JS -->
+        </div>
+
+        <!-- RANKING TABLE -->
+        <div class="clean-card rounded-2xl overflow-hidden">
+            <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h2 class="text-sm font-black text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-list-ol text-blue-600"></i> 전체 실시간 순위 목록
+                    <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping"></span> 자동 스크롤
+                    </span>
+                </h2>
+                <span id="rankCountBadge" class="text-xs font-bold text-slate-500">
+                    총 0개 팀
+                </span>
+            </div>
+
+            <div id="rankingTableScrollContainer" class="overflow-y-auto max-h-[380px]">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-200 bg-white text-[11px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-10 shadow-xs">
+                            <th class="py-3 px-5 text-center w-16">순위</th>
+                            <th class="py-3 px-5">팀명 (E열)</th>
+                            <th class="py-3 px-5">요일/타임/구분 (B,C,D열)</th>
+                            <th class="py-3 px-5">팀원 명단 (G열)</th>
+                            <th class="py-3 px-5 text-center">수집 태그 (I열)</th>
+                            <th class="py-3 px-5 text-center">소요 시간 (J열)</th>
+                            <th class="py-3 px-5 text-center">종합 점수</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rankingTableBody" class="divide-y divide-slate-100 text-xs font-bold text-slate-800">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="emptyState" class="hidden py-12 text-center">
+                <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center text-xl mx-auto mb-2">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <p class="text-slate-600 font-black text-sm">등록된 참가팀 기록이 없습니다.</p>
+                <p class="text-slate-400 text-xs font-medium mt-0.5">상단 '행사 진행자 제어실'에서 태그 수 및 소요시간을 입력해 주세요.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <main id="adminView" class="hidden flex-grow p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full transition-opacity duration-200">
+        
+        <!-- Admin Header Bar -->
+        <div class="clean-card rounded-2xl p-5 mb-6 border-2 border-blue-500/30 bg-blue-50/20 shadow-xs">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-3.5">
+                    <div class="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-xl font-bold shadow-md">
+                        <i class="fa-solid fa-bolt-lightning"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-base md:text-lg font-black text-slate-900">현장 점수 즉시 입력기 (I열 태그수 & J열 소요시간)</h2>
+                            <span class="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                B,C,D,E,G열 자동 수신 중
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-500 font-bold mt-0.5">
+                            스프레드시트에서 <strong class="text-blue-600">B(요일), C(타임), D(구분), E(팀명), G(팀원)</strong> 정보를 자동으로 가져옵니다. 진행자는 <strong class="text-emerald-600">태그 수(I열)</strong>와 <strong class="text-emerald-600">소요시간(J열)</strong>만 입력 후 저장하시면 됩니다!
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="syncWithGoogleAppScript()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 shadow-xs transition-all">
+                        <i class="fa-solid fa-arrows-rotate"></i>
+                        <span>구글 시트 즉시 수동 동기화</span>
+                    </button>
+                    <button onclick="lockAdminSession()" class="px-3 py-2 rounded-xl bg-slate-200 text-slate-700 hover:bg-slate-300 text-xs font-extrabold flex items-center gap-1 transition-all">
+                        <i class="fa-solid fa-lock"></i>
+                        <span>잠금</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Announcement Bar Edit -->
+        <div class="clean-card rounded-2xl p-4 mb-6 bg-white border border-slate-200 shadow-xs">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5 shrink-0">
+                    <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-base border border-blue-100">
+                        📢
+                    </div>
+                    <div>
+                        <h3 class="text-xs font-black text-slate-900">전광판 안내 자막 설정</h3>
+                        <p class="text-[11px] text-slate-400 font-bold">대시보드 하단에 실시간으로 흐르는 전광판 문구를 수정합니다.</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 flex-grow max-w-2xl">
+                    <input type="text" id="adminTickerInput" placeholder="전광판 자막 문구를 입력하세요..." class="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button onclick="updateTickerMessage()" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shrink-0 transition-all shadow-xs flex items-center gap-1">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>적용</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Padlet Controls & Filters -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-black text-slate-400 mr-1"><i class="fa-solid fa-filter text-blue-600"></i> 요일 필터 (B열):</span>
+                <button onclick="filterPadletDay('ALL')" class="padlet-day-btn px-3 py-1.5 rounded-xl text-xs font-black bg-blue-600 text-white shadow-xs" data-pday="ALL">전체</button>
+                <button onclick="filterPadletDay('수')" class="padlet-day-btn px-3 py-1.5 rounded-xl text-xs font-extrabold bg-slate-100 text-slate-600 hover:bg-slate-200" data-pday="수">수요일</button>
+                <button onclick="filterPadletDay('목')" class="padlet-day-btn px-3 py-1.5 rounded-xl text-xs font-extrabold bg-slate-100 text-slate-600 hover:bg-slate-200" data-pday="목">목요일</button>
+                <button onclick="filterPadletDay('금')" class="padlet-day-btn px-3 py-1.5 rounded-xl text-xs font-extrabold bg-slate-100 text-slate-600 hover:bg-slate-200" data-pday="금">금요일</button>
+                
+                <span class="text-xs font-black text-slate-400 ml-2 mr-1">타임 (C열):</span>
+                <select id="padletSlotFilter" onchange="renderPadletGrid()" class="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-black text-slate-800 focus:outline-none">
+                    <option value="ALL">전체 타임</option>
+                    <option value="1부">1부</option>
+                    <option value="2부">2부</option>
+                    <option value="3부">3부</option>
+                </select>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="relative w-full sm:w-64">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-slate-400"></i>
+                <input type="text" id="padletSearchInput" onkeyup="renderPadletGrid()" placeholder="팀명(E열) 또는 팀원(G열) 검색..." class="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+
+        <!-- PADLET CARDS GRID -->
+        <div id="padletGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+            <!-- Dynamic Padlet Cards generated by JS -->
+        </div>
+
+    </main>
+
+    <!-- AUTH MODAL -->
+    <div id="adminAuthModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl border border-slate-100 text-center transform transition-all">
+            <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl mx-auto mb-4 border border-amber-200">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <h3 class="text-lg font-black text-slate-900 mb-1">진행자 관리자 인증</h3>
+            <p class="text-xs text-slate-400 font-semibold mb-5">비밀번호를 입력하여 입력 제어실에 입장하세요.</p>
+            
+            <form onsubmit="verifyAdminPasscode(event)" class="space-y-4">
+                <div>
+                    <input type="password" id="adminPasscodeInput" maxlength="10" placeholder="비밀번호 입력 (기본: 1004)" autofocus required class="w-full text-center px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-base font-black tracking-widest text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+                <div id="authErrorMsg" class="text-xs font-black text-rose-500 hidden">
+                    비밀번호가 올바르지 않습니다.
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="closeAdminAuthModal()" class="w-1/2 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black transition-all">
+                        취소
+                    </button>
+                    <button type="submit" class="w-1/2 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-md transition-all">
+                        확인 및 입장
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toastNotification" class="fixed bottom-16 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 border border-slate-700 text-xs font-black">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+        <span id="toastMessage">알림 메시지</span>
+    </div>
+
+    <!-- TV EXIT BADGE -->
+    <div id="tvExitBadge" class="fixed top-4 right-4 z-50 hidden flex items-center gap-3 bg-white text-slate-900 px-4 py-2 rounded-xl border border-slate-200 shadow-lg">
+        <span class="text-xs font-black flex items-center gap-2 text-blue-600">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
+            16:9 현장 TV 송출 모드
+        </span>
+        <button onclick="toggleTvMode()" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all border border-slate-200">
+            종료 (ESC)
+        </button>
+    </div>
+
+    <!-- Footer Ticker Bar -->
+    <footer class="w-full bg-white text-slate-700 py-2.5 px-6 border-t border-slate-200 overflow-hidden relative">
+        <div class="flex items-center gap-3">
+            <span class="bg-blue-50 text-blue-600 text-[11px] font-black px-2.5 py-0.5 rounded-md shrink-0 border border-blue-100">
+                📢 안내
+            </span>
+            <div class="overflow-hidden whitespace-nowrap w-full">
+                <div id="marqueeText" class="animate-marquee font-bold text-xs text-slate-600">
+                    🏆 1위 우승팀에게는 특별 상품이 지급됩니다! | ⏱️ 소요 시간과 태그 수집 개수로 최종 순위가 결정됩니다. | 출전 팀은 안내된 시간에 집결해 주세요.
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // --- Global State Variables ---
+        let records = [];
+        let currentView = 'dashboard';
+        let currentFilterDay = 'ALL';
+        let padletFilterDay = 'ALL';
+        let isAdminLoggedIn = false;
+        let isTvMode = false;
+        let isScrollHovered = false;
+        let isScrollPaused = false;
+        let autoScrollAnimationFrame = null;
+
+        const ADMIN_PASSCODE = "1004";
+        const GAS_WEBAPP_URL = "https://script.google.com/macros/s/YOUR_GAS_ID/exec";
+
+        // Sample Data for Initial Demo/Fallback
+        const defaultSampleRecords = [
+            { id: 'team_1', day: '수', slot: '1부', detailInfo: 'A구역', teamName: '탐험대 1조', members: '김철수, 이영희, 박지성', tags: 28, minutes: 12, seconds: 45, isRecorded: true },
+            { id: 'team_2', day: '수', slot: '2부', detailInfo: 'B구역', teamName: '블루 이글스', members: '최민수, 정수빈', tags: 30, minutes: 11, seconds: 20, isRecorded: true },
+            { id: 'team_3', day: '목', slot: '1부', detailInfo: 'A구역', teamName: '알파 탐정단', members: '강하늘, 한소희, 윤건', tags: 25, minutes: 14, seconds: 10, isRecorded: true },
+            { id: 'team_4', day: '목', slot: '3부', detailInfo: 'C구역', teamName: '골드 러시', members: '임재범, 송가인', tags: 30, minutes: 10, seconds: 05, isRecorded: true },
+            { id: 'team_5', day: '금', slot: '2부', detailInfo: 'B구역', teamName: '챌린저스', members: '홍길동, 신사임당', tags: 22, minutes: 15, seconds: 30, isRecorded: true }
+        ];
+
+        // --- Navigation & Auth Handler Functions ---
+        function switchView(view) {
+            currentView = view;
+            const dashView = document.getElementById('dashboardView');
+            const admView = document.getElementById('adminView');
+            const dashBtn = document.getElementById('navDashboardBtn');
+            const admBtn = document.getElementById('navAdminBtn');
+            const badge = document.getElementById('headerViewBadge');
+
+            if (view === 'dashboard') {
+                dashView.classList.remove('hidden');
+                admView.classList.add('hidden');
+
+                dashBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-black transition-all bg-white text-blue-600 shadow-xs flex items-center gap-1.5';
+                admBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all text-slate-500 hover:text-slate-900 flex items-center gap-1.5';
+                
+                badge.className = 'text-blue-600 font-extrabold text-xs bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100';
+                badge.innerText = 'LIVE DASHBOARD';
+
+                renderLeaderboard();
+            } else {
+                dashView.classList.add('hidden');
+                admView.classList.remove('hidden');
+
+                dashBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all text-slate-500 hover:text-slate-900 flex items-center gap-1.5';
+                admBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-black transition-all bg-white text-blue-600 shadow-xs flex items-center gap-1.5';
+
+                badge.className = 'text-amber-600 font-extrabold text-xs bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-100';
+                badge.innerText = '행사 진행자 제어실';
+
+                renderPadletGrid();
+            }
+        }
+
+        function requestAdminAccess() {
+            if (isAdminLoggedIn) {
+                switchView('admin');
+            } else {
+                const modal = document.getElementById('adminAuthModal');
+                const input = document.getElementById('adminPasscodeInput');
+                const err = document.getElementById('authErrorMsg');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    if (input) { input.value = ''; input.focus(); }
+                    if (err) err.classList.add('hidden');
+                }
+            }
+        }
+
+        function verifyAdminPasscode(e) {
+            e.preventDefault();
+            const input = document.getElementById('adminPasscodeInput');
+            const err = document.getElementById('authErrorMsg');
+            const lockIcon = document.getElementById('adminLockIcon');
+
+            if (input && input.value === ADMIN_PASSCODE) {
+                isAdminLoggedIn = true;
+                closeAdminAuthModal();
+                if (lockIcon) lockIcon.className = 'fa-solid fa-lock-open text-emerald-500';
+                switchView('admin');
+                showToast("진행자 관리자로 인증되었습니다.", "success");
+            } else {
+                if (err) err.classList.remove('hidden');
+            }
+        }
+
+        function closeAdminAuthModal() {
+            const modal = document.getElementById('adminAuthModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function lockAdminSession() {
+            isAdminLoggedIn = false;
+            const lockIcon = document.getElementById('adminLockIcon');
+            if (lockIcon) lockIcon.className = 'fa-solid fa-lock text-amber-500';
+            switchView('dashboard');
+            showToast("제어실 세션이 잠겼습니다.", "info");
+        }
+
+        function filterDay(day) {
+            currentFilterDay = day;
+            document.querySelectorAll('.day-filter-btn').forEach(btn => {
+                if (btn.getAttribute('data-day') === day) {
+                    btn.className = 'day-filter-btn px-4 py-1.5 rounded-lg text-xs font-black transition-all bg-white text-blue-600 shadow-xs';
+                } else {
+                    btn.className = 'day-filter-btn px-4 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-900 transition-all';
+                }
+            });
+            renderLeaderboard();
+        }
+
+        function filterPadletDay(day) {
+            padletFilterDay = day;
+            document.querySelectorAll('.padlet-day-btn').forEach(btn => {
+                if (btn.getAttribute('data-pday') === day) {
+                    btn.className = 'padlet-day-btn px-3 py-1.5 rounded-xl text-xs font-black bg-blue-600 text-white shadow-xs';
+                } else {
+                    btn.className = 'padlet-day-btn px-3 py-1.5 rounded-xl text-xs font-extrabold bg-slate-100 text-slate-600 hover:bg-slate-200';
+                }
+            });
+            renderPadletGrid();
+        }
+
+        // --- STREAMING_CHUNK: Leaderboard Ranking Logic & Podium Renderer ---
+        function renderLeaderboard() {
+            let filtered = [...records];
+            if (currentFilterDay !== 'ALL') {
+                filtered = filtered.filter(r => r.day === currentFilterDay);
+            }
+
+            // Filter recorded teams vs unrecorded teams
+            const recordedTeams = filtered.filter(r => r.isRecorded || r.tags > 0);
+
+            // Sort logic: 1st priority Tags (desc), 2nd priority Time in seconds (asc)
+            recordedTeams.sort((a, b) => {
+                if (b.tags !== a.tags) {
+                    return b.tags - a.tags;
+                }
+                const timeA = (a.minutes || 0) * 60 + (a.seconds || 0);
+                const timeB = (b.minutes || 0) * 60 + (b.seconds || 0);
+                return timeA - timeB;
+            });
+
+            // Update Header Stats
+            document.getElementById('statTotalTeams').innerText = `${records.length}팀`;
+            
+            if (recordedTeams.length > 0) {
+                const maxTags = Math.max(...recordedTeams.map(t => t.tags || 0));
+                document.getElementById('statMaxTags').innerText = `${maxTags}개 / 30개`;
+
+                const bestTeam = recordedTeams[0];
+                const minPad = String(bestTeam.minutes || 0).padStart(2, '0');
+                const secPad = String(bestTeam.seconds || 0).padStart(2, '0');
+                document.getElementById('statBestTime').innerText = `${minPad}:${secPad}`;
+                document.getElementById('statLeaderTeam').innerText = bestTeam.teamName;
+            } else {
+                document.getElementById('statMaxTags').innerText = `0개 / 30개`;
+                document.getElementById('statBestTime').innerText = `--:--`;
+                document.getElementById('statLeaderTeam').innerText = `기록 없음`;
+            }
+
+            // Render Podium (TOP 3)
+            const podiumContainer = document.getElementById('podiumContainer');
+            if (podiumContainer) {
+                podiumContainer.innerHTML = '';
+                
+                const top3 = recordedTeams.slice(0, 3);
+                if (top3.length === 0) {
+                    podiumContainer.innerHTML = `
+                        <div class="col-span-3 clean-card rounded-2xl p-6 text-center text-slate-400 font-bold text-xs">
+                            <i class="fa-solid fa-trophy text-2xl text-amber-300 mb-1 block"></i>
+                            아직 성적이 등록된 참가팀이 없습니다.
+                        </div>
+                    `;
+                } else {
+                    const podiumOrder = [
+                        { rank: 2, team: top3[1], badge: 'silver-podium', label: '2위', color: 'text-slate-500' },
+                        { rank: 1, team: top3[0], badge: 'gold-podium', label: '1위 우승', color: 'text-amber-500' },
+                        { rank: 3, team: top3[2], badge: 'bronze-podium', label: '3위', color: 'text-amber-700' }
+                    ];
+
+                    podiumOrder.forEach(item => {
+                        if (!item.team) return;
+                        const t = item.team;
+                        const minP = String(t.minutes || 0).padStart(2, '0');
+                        const secP = String(t.seconds || 0).padStart(2, '0');
+
+                        const podiumHtml = `
+                            <div class="clean-card ${item.badge} rounded-3xl p-5 flex flex-col justify-between shadow-xs relative overflow-hidden">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="text-xs font-black px-3 py-1 rounded-full bg-slate-100 ${item.color}">
+                                        <i class="fa-solid fa-medal mr-1"></i>${item.label}
+                                    </span>
+                                    <span class="text-xs font-extrabold text-slate-400">${t.day}요일 / ${t.slot}</span>
+                                </div>
+                                <div class="mb-4">
+                                    <h3 class="text-lg font-black text-slate-900 truncate">${t.teamName}</h3>
+                                    <p class="text-xs text-slate-500 font-bold truncate mt-0.5"><i class="fa-solid fa-user-group text-[10px] mr-1"></i>${t.members || '팀원 미지정'}</p>
+                                </div>
+                                <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs font-black">
+                                    <div class="text-blue-600">
+                                        <span class="text-slate-400 font-bold text-[10px] block">수집 태그</span>
+                                        <span class="text-base">${t.tags || 0}개</span>
+                                    </div>
+                                    <div class="text-slate-800 text-right">
+                                        <span class="text-slate-400 font-bold text-[10px] block">소요 시간</span>
+                                        <span class="text-base">${minP}:${secP}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        podiumContainer.insertAdjacentHTML('beforeend', podiumHtml);
+                    });
+                }
+            }
+
+            // Render Table Rows
+            const tbody = document.getElementById('rankingTableBody');
+            const emptyState = document.getElementById('emptyState');
+            const countBadge = document.getElementById('rankCountBadge');
+
+            if (tbody) {
+                tbody.innerHTML = '';
+
+                if (recordedTeams.length === 0) {
+                    if (emptyState) emptyState.classList.remove('hidden');
+                    if (countBadge) countBadge.innerText = '총 0개 팀';
+                } else {
+                    if (emptyState) emptyState.classList.add('hidden');
+                    if (countBadge) countBadge.innerText = `총 ${recordedTeams.length}개 팀`;
+
+                    recordedTeams.forEach((t, idx) => {
+                        const rank = idx + 1;
+                        let rankBadgeClass = 'bg-slate-100 text-slate-600';
+                        if (rank === 1) rankBadgeClass = 'bg-amber-100 text-amber-700 font-black';
+                        else if (rank === 2) rankBadgeClass = 'bg-slate-200 text-slate-700 font-black';
+                        else if (rank === 3) rankBadgeClass = 'bg-amber-50 text-amber-800 font-black';
+
+                        const minP = String(t.minutes || 0).padStart(2, '0');
+                        const secP = String(t.seconds || 0).padStart(2, '0');
+                        const score = (t.tags || 0) * 100 - ((t.minutes || 0) * 60 + (t.seconds || 0));
+
+                        const rowHtml = `
+                            <tr class="hover:bg-slate-50/80 transition-colors">
+                                <td class="py-3 px-5 text-center">
+                                    <span class="w-7 h-7 inline-flex items-center justify-center rounded-full text-xs ${rankBadgeClass}">
+                                        ${rank}
+                                    </span>
+                                </td>
+                                <td class="py-3 px-5 font-black text-slate-900">${t.teamName}</td>
+                                <td class="py-3 px-5 font-bold text-slate-500">
+                                    <span class="bg-slate-100 px-2 py-0.5 rounded text-[11px] mr-1">${t.day}요일</span>
+                                    <span class="bg-slate-100 px-2 py-0.5 rounded text-[11px]">${t.slot} ${t.detailInfo ? '(' + t.detailInfo + ')' : ''}</span>
+                                </td>
+                                <td class="py-3 px-5 text-slate-600 font-semibold">${t.members || '-'}</td>
+                                <td class="py-3 px-5 text-center font-black text-blue-600">${t.tags || 0}개</td>
+                                <td class="py-3 px-5 text-center font-mono font-bold text-slate-700">${minP}:${secP}</td>
+                                <td class="py-3 px-5 text-center font-black text-emerald-600">${score > 0 ? score : 0}점</td>
+                            </tr>
+                        `;
+                        tbody.insertAdjacentHTML('beforeend', rowHtml);
+                    });
+                }
+            }
+        }
+
+        // --- STREAMING_CHUNK: Admin Padlet Grid Renderer ---
+        function renderPadletGrid() {
+            const grid = document.getElementById('padletGrid');
+            if (!grid) return;
+
+            const slotFilter = document.getElementById('padletSlotFilter')?.value || 'ALL';
+            const searchQuery = (document.getElementById('padletSearchInput')?.value || '').toLowerCase().trim();
+
+            let list = [...records];
+
+            if (padletFilterDay !== 'ALL') {
+                list = list.filter(r => r.day === padletFilterDay);
+            }
+            if (slotFilter !== 'ALL') {
+                list = list.filter(r => r.slot === slotFilter);
+            }
+            if (searchQuery) {
+                list = list.filter(r => 
+                    (r.teamName && r.teamName.toLowerCase().includes(searchQuery)) ||
+                    (r.members && r.members.toLowerCase().includes(searchQuery))
+                );
+            }
+
+            grid.innerHTML = '';
+
+            if (list.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full clean-card rounded-2xl p-12 text-center text-slate-400 font-bold text-sm">
+                        <i class="fa-solid fa-folder-open text-3xl text-slate-300 block mb-2"></i>
+                        구글 시트에서 가져온 팀 정보가 없거나 검색 조건에 맞는 팀이 없습니다.
+                    </div>
+                `;
+                return;
+            }
+
+            list.forEach(team => {
+                const isRecorded = team.isRecorded || team.tags > 0;
+                const cardHtml = `
+                    <div class="clean-card rounded-3xl p-5 flex flex-col justify-between shadow-xs border border-slate-200/80 bg-white">
+                        <div>
+                            <!-- Header Info & Status Badge -->
+                            <div class="flex items-center justify-between gap-2 mb-4">
+                                <div class="flex items-center gap-2">
+                                    <div class="bg-slate-100 text-slate-800 text-xs font-black px-3 py-1.5 rounded-xl border border-slate-200/60 flex items-center gap-1">
+                                        <span>${team.day}요일</span>
+                                    </div>
+                                    <div class="bg-slate-100 text-slate-800 text-xs font-black px-3 py-1.5 rounded-xl border border-slate-200/60 flex items-center gap-1">
+                                        <span>${team.slot}</span>
+                                    </div>
+                                </div>
+                                <span class="text-[11px] font-black px-3 py-1 rounded-full ${isRecorded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}">
+                                    ${isRecorded ? '입력완료' : '미입력'}
+                                </span>
+                            </div>
+
+                            <!-- Team Name Field -->
+                            <div class="mb-3">
+                                <label class="text-[11px] font-extrabold text-slate-400 block mb-1">팀명</label>
+                                <input type="text" id="teamName_${team.id}" value="${team.teamName}" class="w-full bg-slate-50/70 border border-slate-200/80 rounded-2xl px-4 py-2.5 font-black text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+
+                            <!-- Team Members Field -->
+                            <div class="mb-4">
+                                <label class="text-[11px] font-extrabold text-slate-400 block mb-1">팀원 명단</label>
+                                <input type="text" id="members_${team.id}" value="${team.members || ''}" placeholder="팀원 이름 입력" class="w-full bg-slate-50/70 border border-slate-200/80 rounded-2xl px-4 py-2.5 font-black text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+
+                            <!-- Score Entry Box -->
+                            <div class="p-3.5 bg-slate-50/40 rounded-2xl border border-slate-200/80 mb-4">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="text-[11px] font-extrabold text-slate-600 block mb-1.5">
+                                            수집 태그 수 (개)
+                                        </label>
+                                        <input type="number" id="tags_${team.id}" min="0" max="30" value="${team.tags || 0}" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-black text-blue-600 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="text-[11px] font-extrabold text-slate-600 block mb-1.5">
+                                            소요시간 (분:초)
+                                        </label>
+                                        <div class="flex items-center justify-center gap-1.5">
+                                            <input type="number" id="min_${team.id}" min="0" max="99" value="${team.minutes || 0}" class="w-14 px-2 py-2 rounded-xl bg-white border border-slate-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <span class="font-bold text-slate-400">:</span>
+                                            <input type="number" id="sec_${team.id}" min="0" max="59" value="${team.seconds || 0}" class="w-14 px-2 py-2 rounded-xl bg-white border border-slate-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Footer Action Buttons -->
+                        <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+                            <button onclick="deleteTeamRecord('${team.id}')" class="text-xs font-extrabold text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-1.5 px-2 py-1">
+                                <i class="fa-regular fa-trash-can"></i> 삭제
+                            </button>
+                            <button onclick="saveTeamRecord('${team.id}')" class="px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-sm transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-check"></i> 저장
+                            </button>
+                        </div>
+                    </div>
+                `;
+                grid.insertAdjacentHTML('beforeend', cardHtml);
+            });
+        }
+
+        // --- Save & Delete Record Helpers ---
+        function saveTeamRecord(id) {
+            const idx = records.findIndex(r => r.id === id);
+            if (idx === -1) return;
+
+            const tags = parseInt(document.getElementById(`tags_${id}`)?.value || 0);
+            const minutes = parseInt(document.getElementById(`min_${id}`)?.value || 0);
+            const seconds = parseInt(document.getElementById(`sec_${id}`)?.value || 0);
+            const teamName = document.getElementById(`teamName_${id}`)?.value?.trim() || records[idx].teamName;
+            const members = document.getElementById(`members_${id}`)?.value?.trim() ?? records[idx].members;
+
+            records[idx] = {
+                ...records[idx],
+                teamName,
+                members,
+                tags,
+                minutes,
+                seconds,
+                isRecorded: true
+            };
+
+            saveRecordsToStorage();
+            renderPadletGrid();
+            renderLeaderboard();
+            showToast(`'${records[idx].teamName}' 팀 성적이 저장되었습니다!`, "success");
+
+            syncSingleRecordToAppsScript(records[idx]);
+        }
+
+        function deleteTeamRecord(id) {
+            const team = records.find(r => r.id === id);
+            if (!team) return;
+            
+            records = records.filter(r => r.id !== id);
+            saveRecordsToStorage();
+            renderPadletGrid();
+            renderLeaderboard();
+            showToast(`'${team.teamName}' 카드가 삭제되었습니다.`, "info");
+        }
+
+        // --- STREAMING_CHUNK: Google Apps Script Data Sync ---
+        async function fetchDataFromAppsScript(isSilent = false) {
+            const badgeEl = document.getElementById('teamsLoadedBadge');
+            try {
+                const response = await fetch(GAS_WEBAPP_URL);
+                if (response.ok) {
+                    const data = await response.json();
+                    let rawList = [];
+                    if (Array.isArray(data)) {
+                        rawList = data;
+                    } else if (data && typeof data === 'object') {
+                        rawList = data.data || data.records || data.result || data.items || [];
+                    }
+
+                    if (rawList.length > 0 && Array.isArray(rawList[0])) {
+                        const headers = rawList[0];
+                        rawList = rawList.slice(1).map(row => {
+                            const obj = {};
+                            headers.forEach((h, i) => { obj[h] = row[i]; });
+                            obj['_colB'] = row[1];
+                            obj['_colC'] = row[2];
+                            obj['_colD'] = row[3];
+                            obj['_colE'] = row[4];
+                            obj['_colG'] = row[6];
+                            obj['_colI'] = row[8];
+                            obj['_colJ'] = row[9];
+                            return obj;
+                        });
+                    }
+
+                    if (Array.isArray(rawList) && rawList.length > 0) {
+                        records = rawList.map((item, idx) => {
+                            let rawDay = String(item._colB || item.day || item['요일'] || '수').trim();
+                            if (rawDay.includes('수')) rawDay = '수';
+                            else if (rawDay.includes('목')) rawDay = '목';
+                            else if (rawDay.includes('금')) rawDay = '금';
+
+                            let rawSlot = String(item._colC || item.slot || item['타임'] || '1부').trim();
+                            let rawDetail = String(item._colD || item.detail || item['구분'] || '').trim();
+                            let tName = String(item._colE || item.teamName || item['팀명'] || `팀 ${idx + 1}`).trim();
+                            let mMembers = String(item._colG || item.members || item['팀원'] || '').trim();
+
+                            let tagVal = item._colI ?? item.tags ?? 0;
+                            let minVal = item.minutes ?? 0;
+                            let secVal = item.seconds ?? 0;
+
+                            const jTimeStr = String(item._colJ || item['소요시간'] || '');
+                            if (jTimeStr && jTimeStr.includes(':')) {
+                                const parts = jTimeStr.split(':');
+                                minVal = parseInt(parts[0]) || minVal;
+                                secVal = parseInt(parts[1]) || secVal;
+                            }
+
+                            const parsedTags = parseInt(tagVal) || 0;
+                            const parsedMin = parseInt(minVal) || 0;
+                            const parsedSec = parseInt(secVal) || 0;
+
+                            return {
+                                id: String(item.id || ('team_row_' + (idx + 1))),
+                                day: rawDay,
+                                slot: rawSlot,
+                                detailInfo: rawDetail,
+                                teamName: tName,
+                                members: mMembers,
+                                tags: parsedTags,
+                                minutes: parsedMin,
+                                seconds: parsedSec,
+                                isRecorded: (parsedTags > 0 || parsedMin > 0 || parsedSec > 0)
+                            };
+                        });
+
+                        saveRecordsToStorage();
+                        renderLeaderboard();
+                        if (currentView === 'admin') renderPadletGrid();
+                        if (badgeEl) {
+                            badgeEl.classList.remove('hidden');
+                            badgeEl.innerText = `시트 B,C,D,E,G 연동 완료 (${records.length}팀)`;
+                        }
+                    }
+                }
+            } catch (err) {
+                if (!isSilent) console.error("Google Apps Script 데이터 수신 오류:", err);
+            }
+        }
+
+        async function syncWithGoogleAppScript() {
+            showToast("구글 시트 데이터를 새로고침하고 있습니다...", "info");
+            await fetchDataFromAppsScript(false);
+            showToast("최신 팀 정보 동기화 완료!", "success");
+        }
+
+        async function syncSingleRecordToAppsScript(record) {
+            try {
+                const payload = {
+                    action: 'updateRecord',
+                    id: record.id,
+                    teamName: record.teamName,
+                    tags: record.tags,
+                    minutes: record.minutes,
+                    seconds: record.seconds,
+                    isRecorded: true
+                };
+                
+                await fetch(GAS_WEBAPP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } catch (err) {
+                console.error("단일 기록 동기화 중 오류:", err);
+            }
+        }
+
+        // --- Clock & Ticker Utils ---
+        function startClock() {
+            setInterval(() => {
+                const now = new Date();
+                const clockEl = document.getElementById('liveClock');
+                if (clockEl) clockEl.innerText = now.toTimeString().split(' ')[0];
+            }, 1000);
+        }
+
+        function loadSavedTickerMessage() {
+            const savedMsg = localStorage.getItem('rfid_ticker_message');
+            const defaultMsg = "🏆 1위 우승팀에게는 특별 상품이 지급됩니다! | ⏱️ 소요 시간과 태그 수집 개수로 최종 순위가 결정됩니다. | 출전 팀은 안내된 시간에 집결해 주세요.";
+            const msgToUse = savedMsg || defaultMsg;
+            
+            const marqueeEl = document.getElementById('marqueeText');
+            if (marqueeEl) marqueeEl.innerText = msgToUse;
+
+            const inputEl = document.getElementById('adminTickerInput');
+            if (inputEl) inputEl.value = msgToUse;
+        }
+
+        function updateTickerMessage() {
+            const inputEl = document.getElementById('adminTickerInput');
+            if (!inputEl) return;
+            const newMsg = inputEl.value.trim();
+            if (!newMsg) {
+                showToast("전광판 문구를 입력해 주세요.", "warning");
+                return;
+            }
+
+            localStorage.setItem('rfid_ticker_message', newMsg);
+            const marqueeEl = document.getElementById('marqueeText');
+            if (marqueeEl) marqueeEl.innerText = newMsg;
+
+            showToast("전광판 자막 문구가 업데이트되었습니다!", "success");
+        }
+
+        // --- STREAMING_CHUNK: Auto Scroll & Storage Helpers ---
+        function setupAutoScroll() {
+            const container = document.getElementById('rankingTableScrollContainer');
+            if (!container) return;
+
+            container.addEventListener('mouseenter', () => { isScrollHovered = true; });
+            container.addEventListener('mouseleave', () => { isScrollHovered = false; });
+            container.addEventListener('touchstart', () => { isScrollHovered = true; }, { passive: true });
+            container.addEventListener('touchend', () => { isScrollHovered = false; });
+
+            if (autoScrollAnimationFrame) cancelAnimationFrame(autoScrollAnimationFrame);
+
+            let scrollAcc = 0;
+            const scrollSpeed = 0.5;
+
+            function step() {
+                if (!isScrollHovered && !isScrollPaused && container.scrollHeight > container.clientHeight) {
+                    scrollAcc += scrollSpeed;
+                    if (scrollAcc >= 1) {
+                        const move = Math.floor(scrollAcc);
+                        scrollAcc -= move;
+                        container.scrollTop += move;
+
+                        if (container.scrollTop + container.clientHeight >= container.scrollHeight - 2) {
+                            isScrollPaused = true;
+                            setTimeout(() => {
+                                container.scrollTo({ top: 0, behavior: 'smooth' });
+                                setTimeout(() => { isScrollPaused = false; }, 1500);
+                            }, 2000);
+                        }
+                    }
+                }
+                autoScrollAnimationFrame = requestAnimationFrame(step);
+            }
+
+            autoScrollAnimationFrame = requestAnimationFrame(step);
+        }
+
+        function loadFromStorage() {
+            const savedRecords = localStorage.getItem('rfid_leaderboard_records');
+            if (savedRecords) {
+                try { 
+                    records = JSON.parse(savedRecords); 
+                } catch (e) { 
+                    records = []; 
+                }
+            }
+            if (!records || records.length === 0) {
+                records = defaultSampleRecords;
+                saveRecordsToStorage();
+            }
+        }
+
+        function saveRecordsToStorage() {
+            localStorage.setItem('rfid_leaderboard_records', JSON.stringify(records));
+        }
+
+        function toggleTvMode() {
+            isTvMode = !isTvMode;
+            const body = document.body;
+            const badge = document.getElementById('tvExitBadge');
+            
+            if (isTvMode) {
+                body.classList.add('tv-mode-active');
+                if (badge) badge.classList.remove('hidden');
+                showToast("현장 TV 송출 모드로 전환되었습니다 (ESC로 종료)", "info");
+            } else {
+                body.classList.remove('tv-mode-active');
+                if (badge) badge.classList.add('hidden');
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isTvMode) toggleTvMode();
+        });
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toastNotification');
+            const toastMsg = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            if (!toast || !toastMsg || !toastIcon) return;
+
+            toastMsg.innerText = message;
+            
+            if (type === 'success') {
+                toastIcon.className = 'fa-solid fa-circle-check text-emerald-400 text-base';
+            } else if (type === 'warning') {
+                toastIcon.className = 'fa-solid fa-triangle-exclamation text-amber-400 text-base';
+            } else {
+                toastIcon.className = 'fa-solid fa-circle-info text-blue-400 text-base';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // --- Initial Load Sequence ---
+        window.addEventListener('DOMContentLoaded', () => {
+            loadFromStorage();
+            loadSavedTickerMessage();
+            startClock();
+            renderLeaderboard();
+            setupAutoScroll();
+            fetchDataFromAppsScript(true);
+        });
+    </script>
+</body>
+</html>
