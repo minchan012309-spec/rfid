@@ -50,7 +50,6 @@
             user-select: none;
         }
 
-        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
 
@@ -91,13 +90,39 @@
         }
 
         body.tv-mode-active .tv-stage-container {
-            max-width: 1600px;
-            margin: 0 auto;
+            max-width: 100% !important;
+            height: calc(100vh - 55px - 40px);
+            padding: 0.75rem 1.5rem !important;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
-            height: calc(100vh - 65px - 45px);
-            padding: 1.25rem 2rem;
+            justify-content: flex-start;
+            gap: 0.75rem;
+        }
+
+        body.tv-mode-active #podiumContainer {
+            margin-bottom: 0.75rem !important;
+            gap: 0.75rem !important;
+        }
+
+        body.tv-mode-active #statGrid {
+            margin-bottom: 0.75rem !important;
+            gap: 0.75rem !important;
+        }
+
+        body.tv-mode-active .stat-card-compact {
+            padding: 0.6rem 0.8rem !important;
+        }
+
+        body.tv-mode-active #podiumContainer .clean-card {
+            padding: 0.85rem 1rem !important;
+        }
+
+        body.tv-mode-active #filterBar {
+            margin-bottom: 0.5rem !important;
+        }
+
+        body.tv-mode-active #rankingTableScrollContainer {
+            max-height: calc(100vh - 360px) !important;
         }
     </style>
 </head>
@@ -117,11 +142,11 @@
                             LIVE DASHBOARD
                         </span>
                     </h1>
-                    <p class="text-xs text-slate-400 font-semibold hidden md:block">스프레드시트 B,C,D,E,G열 자동 연동 | 실시간 성적 수집 시스템</p>
+                    <p class="text-xs text-slate-400 font-semibold hidden md:block">구글 스프레드시트 실시간 양방향 연동 시스템</p>
                 </div>
             </div>
 
-            <!-- Navigation Switcher & Live Clock -->
+            <!-- Navigation Controls -->
             <div class="flex items-center gap-2 sm:gap-3">
                 <div class="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
                     <button id="navDashboardBtn" onclick="switchView('dashboard')" class="px-3.5 py-1.5 rounded-lg text-xs font-black transition-all bg-white text-blue-600 shadow-xs flex items-center gap-1.5">
@@ -140,7 +165,6 @@
                     <span id="liveClock">00:00:00</span>
                 </div>
 
-                <!-- TV Mode Toggle -->
                 <button onclick="toggleTvMode()" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold flex items-center gap-1.5 transition-all">
                     <i class="fa-solid fa-tv text-amber-400"></i>
                     <span class="hidden md:inline">현장 TV 모드</span>
@@ -152,19 +176,19 @@
 
     <main id="dashboardView" class="tv-stage-container flex-grow p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full transition-opacity duration-200">
 
-        <!-- Stat Cards -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-5">
-            <div class="clean-card rounded-2xl p-4 flex items-center gap-3.5">
+        <!-- Realtime Statistics Summary Grid -->
+        <div id="statGrid" class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4">
+            <div class="clean-card stat-card-compact rounded-2xl p-4 flex items-center gap-3.5">
                 <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg font-bold shrink-0 border border-blue-100">
                     <i class="fa-solid fa-users"></i>
                 </div>
                 <div>
-                    <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">참가 팀 수 (시트연동)</p>
+                    <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">참가 팀 수</p>
                     <p id="statTotalTeams" class="text-lg md:text-xl font-black text-slate-900">0팀</p>
                 </div>
             </div>
 
-            <div class="clean-card rounded-2xl p-4 flex items-center gap-3.5">
+            <div class="clean-card stat-card-compact rounded-2xl p-4 flex items-center gap-3.5">
                 <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg font-bold shrink-0 border border-amber-100">
                     <i class="fa-solid fa-microchip"></i>
                 </div>
@@ -174,7 +198,7 @@
                 </div>
             </div>
 
-            <div class="clean-card rounded-2xl p-4 flex items-center gap-3.5">
+            <div class="clean-card stat-card-compact rounded-2xl p-4 flex items-center gap-3.5">
                 <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg font-bold shrink-0 border border-emerald-100">
                     <i class="fa-solid fa-stopwatch"></i>
                 </div>
@@ -184,7 +208,7 @@
                 </div>
             </div>
 
-            <div class="clean-card rounded-2xl p-4 flex items-center gap-3.5">
+            <div class="clean-card stat-card-compact rounded-2xl p-4 flex items-center gap-3.5">
                 <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg font-bold shrink-0 border border-indigo-100">
                     <i class="fa-solid fa-crown"></i>
                 </div>
@@ -195,8 +219,7 @@
             </div>
         </div>
 
-        <!-- Filters -->
-        <div class="flex items-center justify-between gap-4 mb-5">
+        <div id="filterBar" class="flex items-center justify-between gap-4 mb-3">
             <div class="flex items-center gap-1.5 bg-slate-200/60 p-1 rounded-xl">
                 <button onclick="filterDay('ALL')" class="day-filter-btn px-4 py-1.5 rounded-lg text-xs font-black transition-all bg-white text-blue-600 shadow-xs" data-day="ALL">전체 순위</button>
                 <button onclick="filterDay('수')" class="day-filter-btn px-4 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-900 transition-all" data-day="수">수요일</button>
@@ -210,50 +233,51 @@
             </div>
         </div>
 
-        <!-- TOP 3 PODIUM -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" id="podiumContainer">
-            <!-- Dynamic Podium generated by JS -->
+        <!-- TOP 3 Podium Grid Container -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4" id="podiumContainer">
+            <!-- Dynamically generated by JavaScript -->
         </div>
 
-        <!-- RANKING TABLE -->
-        <div class="clean-card rounded-2xl overflow-hidden">
-            <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                <h2 class="text-sm font-black text-slate-800 flex items-center gap-2">
-                    <i class="fa-solid fa-list-ol text-blue-600"></i> 전체 실시간 순위 목록
-                    <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping"></span> 자동 스크롤
+        <div class="clean-card rounded-2xl overflow-hidden flex-grow flex flex-col justify-between">
+            <div>
+                <div class="px-5 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <h2 class="text-sm font-black text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-list-ol text-blue-600"></i> 전체 실시간 순위 목록
+                        <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping"></span> 5초 자동 동기화
+                        </span>
+                    </h2>
+                    <span id="rankCountBadge" class="text-xs font-bold text-slate-500">
+                        총 0개 팀
                     </span>
-                </h2>
-                <span id="rankCountBadge" class="text-xs font-bold text-slate-500">
-                    총 0개 팀
-                </span>
+                </div>
+
+                <div id="rankingTableScrollContainer" class="overflow-y-auto max-h-[380px]">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-200 bg-white text-[11px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-10 shadow-xs">
+                                <th class="py-2.5 px-4 text-center w-16">순위</th>
+                                <th class="py-2.5 px-4">팀명 (E열)</th>
+                                <th class="py-2.5 px-4">요일/타임/구분 (B,C,D열)</th>
+                                <th class="py-2.5 px-4">팀원 명단 (G열)</th>
+                                <th class="py-2.5 px-4 text-center">수집 태그 (I열)</th>
+                                <th class="py-2.5 px-4 text-center">소요 시간 (J열)</th>
+                                <th class="py-2.5 px-4 text-center">종합 점수</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rankingTableBody" class="divide-y divide-slate-100 text-xs font-bold text-slate-800">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <div id="rankingTableScrollContainer" class="overflow-y-auto max-h-[380px]">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="border-b border-slate-200 bg-white text-[11px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-10 shadow-xs">
-                            <th class="py-3 px-5 text-center w-16">순위</th>
-                            <th class="py-3 px-5">팀명 (E열)</th>
-                            <th class="py-3 px-5">요일/타임/구분 (B,C,D열)</th>
-                            <th class="py-3 px-5">팀원 명단 (G열)</th>
-                            <th class="py-3 px-5 text-center">수집 태그 (I열)</th>
-                            <th class="py-3 px-5 text-center">소요 시간 (J열)</th>
-                            <th class="py-3 px-5 text-center">종합 점수</th>
-                        </tr>
-                    </thead>
-                    <tbody id="rankingTableBody" class="divide-y divide-slate-100 text-xs font-bold text-slate-800">
-                        <!-- Populated by JS -->
-                    </tbody>
-                </table>
-            </div>
-
-            <div id="emptyState" class="hidden py-12 text-center">
+            <div id="emptyState" class="hidden py-10 text-center">
                 <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center text-xl mx-auto mb-2">
                     <i class="fa-solid fa-trophy"></i>
                 </div>
                 <p class="text-slate-600 font-black text-sm">등록된 참가팀 기록이 없습니다.</p>
-                <p class="text-slate-400 text-xs font-medium mt-0.5">상단 '행사 진행자 제어실'에서 태그 수 및 소요시간을 입력해 주세요.</p>
+                <p class="text-slate-400 text-xs font-medium mt-0.5">구글 스프레드시트에 새 예약이 등록되면 자동 표시됩니다.</p>
             </div>
         </div>
 
@@ -261,7 +285,6 @@
 
     <main id="adminView" class="hidden flex-grow p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full transition-opacity duration-200">
         
-        <!-- Admin Header Bar -->
         <div class="clean-card rounded-2xl p-5 mb-6 border-2 border-blue-500/30 bg-blue-50/20 shadow-xs">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="flex items-center gap-3.5">
@@ -270,14 +293,14 @@
                     </div>
                     <div>
                         <div class="flex items-center gap-2">
-                            <h2 class="text-base md:text-lg font-black text-slate-900">현장 점수 즉시 입력기 (I열 태그수 & J열 소요시간)</h2>
+                            <h2 class="text-base md:text-lg font-black text-slate-900">현장 점수 입력기 (I열 태그수 & J열 소요시간)</h2>
                             <span class="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
                                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                B,C,D,E,G열 자동 수신 중
+                                스프레드시트 5초 자동 실시간 연동 중
                             </span>
                         </div>
                         <p class="text-xs text-slate-500 font-bold mt-0.5">
-                            스프레드시트에서 <strong class="text-blue-600">B(요일), C(타임), D(구분), E(팀명), G(팀원)</strong> 정보를 자동으로 가져옵니다. 진행자는 <strong class="text-emerald-600">태그 수(I열)</strong>와 <strong class="text-emerald-600">소요시간(J열)</strong>만 입력 후 저장하시면 됩니다!
+                            학생들의 신청 내역이 들어오면 바로 카드가 생성됩니다. 진행자는 <strong class="text-emerald-600">태그 수(I열)</strong>와 <strong class="text-emerald-600">소요시간(J열)</strong> 입력 후 <strong>[저장]</strong>을 누르면 구글 시트로 즉시 전송됩니다.
                         </p>
                     </div>
                 </div>
@@ -285,7 +308,7 @@
                 <div class="flex items-center gap-2">
                     <button onclick="syncWithGoogleAppScript()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 shadow-xs transition-all">
                         <i class="fa-solid fa-arrows-rotate"></i>
-                        <span>구글 시트 즉시 수동 동기화</span>
+                        <span>수동 동기화</span>
                     </button>
                     <button onclick="lockAdminSession()" class="px-3 py-2 rounded-xl bg-slate-200 text-slate-700 hover:bg-slate-300 text-xs font-extrabold flex items-center gap-1 transition-all">
                         <i class="fa-solid fa-lock"></i>
@@ -295,7 +318,7 @@
             </div>
         </div>
 
-        <!-- Announcement Bar Edit -->
+        <!-- Ticker Announcement Config -->
         <div class="clean-card rounded-2xl p-4 mb-6 bg-white border border-slate-200 shadow-xs">
             <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div class="flex items-center gap-2.5 shrink-0">
@@ -317,7 +340,6 @@
             </div>
         </div>
 
-        <!-- Padlet Controls & Filters -->
         <div class="flex flex-wrap items-center justify-between gap-3 mb-6 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
             <div class="flex flex-wrap items-center gap-2">
                 <span class="text-xs font-black text-slate-400 mr-1"><i class="fa-solid fa-filter text-blue-600"></i> 요일 필터 (B열):</span>
@@ -335,21 +357,20 @@
                 </select>
             </div>
 
-            <!-- Search Bar -->
             <div class="relative w-full sm:w-64">
                 <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-slate-400"></i>
                 <input type="text" id="padletSearchInput" onkeyup="renderPadletGrid()" placeholder="팀명(E열) 또는 팀원(G열) 검색..." class="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
         </div>
 
-        <!-- PADLET CARDS GRID -->
+        <!-- Padlet Cards Grid Area -->
         <div id="padletGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
-            <!-- Dynamic Padlet Cards generated by JS -->
+            <!-- Dynamically generated Padlet Cards -->
         </div>
 
     </main>
 
-    <!-- AUTH MODAL -->
+    <!-- Authentication Modal -->
     <div id="adminAuthModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
         <div class="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl border border-slate-100 text-center transform transition-all">
             <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl mx-auto mb-4 border border-amber-200">
@@ -360,7 +381,7 @@
             
             <form onsubmit="verifyAdminPasscode(event)" class="space-y-4">
                 <div>
-                    <input type="password" id="adminPasscodeInput" maxlength="10" placeholder="비밀번호 입력 (기본: 1004)" autofocus required class="w-full text-center px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-base font-black tracking-widest text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    <input type="password" id="adminPasscodeInput" maxlength="10" placeholder="비밀번호 입력" autofocus required class="w-full text-center px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-base font-black tracking-widest text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
                 </div>
                 <div id="authErrorMsg" class="text-xs font-black text-rose-500 hidden">
                     비밀번호가 올바르지 않습니다.
@@ -377,13 +398,13 @@
         </div>
     </div>
 
-    <!-- TOAST NOTIFICATION -->
+    <!-- Toast Notification Overlay -->
     <div id="toastNotification" class="fixed bottom-16 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 border border-slate-700 text-xs font-black">
         <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
         <span id="toastMessage">알림 메시지</span>
     </div>
 
-    <!-- TV EXIT BADGE -->
+    <!-- TV Exit Floating Button -->
     <div id="tvExitBadge" class="fixed top-4 right-4 z-50 hidden flex items-center gap-3 bg-white text-slate-900 px-4 py-2 rounded-xl border border-slate-200 shadow-lg">
         <span class="text-xs font-black flex items-center gap-2 text-blue-600">
             <span class="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
@@ -394,7 +415,7 @@
         </button>
     </div>
 
-    <!-- Footer Ticker Bar -->
+    <!-- Ticker Bar Footer -->
     <footer class="w-full bg-white text-slate-700 py-2.5 px-6 border-t border-slate-200 overflow-hidden relative">
         <div class="flex items-center gap-3">
             <span class="bg-blue-50 text-blue-600 text-[11px] font-black px-2.5 py-0.5 rounded-md shrink-0 border border-blue-100">
@@ -409,7 +430,6 @@
     </footer>
 
     <script>
-        // --- Global State Variables ---
         let records = [];
         let currentView = 'dashboard';
         let currentFilterDay = 'ALL';
@@ -421,18 +441,8 @@
         let autoScrollAnimationFrame = null;
 
         const ADMIN_PASSCODE = "1004";
-        const GAS_WEBAPP_URL = "https://script.google.com/macros/s/YOUR_GAS_ID/exec";
+        const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzPIXzqV-H5lzuT_-2z6gojyh8KqRonuzrZNPpmXBD91F6EM-Mzsu4EGMfTZDd_PA0vdw/exec";
 
-        // Sample Data for Initial Demo/Fallback
-        const defaultSampleRecords = [
-            { id: 'team_1', day: '수', slot: '1부', detailInfo: 'A구역', teamName: '탐험대 1조', members: '김철수, 이영희, 박지성', tags: 28, minutes: 12, seconds: 45, isRecorded: true },
-            { id: 'team_2', day: '수', slot: '2부', detailInfo: 'B구역', teamName: '블루 이글스', members: '최민수, 정수빈', tags: 30, minutes: 11, seconds: 20, isRecorded: true },
-            { id: 'team_3', day: '목', slot: '1부', detailInfo: 'A구역', teamName: '알파 탐정단', members: '강하늘, 한소희, 윤건', tags: 25, minutes: 14, seconds: 10, isRecorded: true },
-            { id: 'team_4', day: '목', slot: '3부', detailInfo: 'C구역', teamName: '골드 러시', members: '임재범, 송가인', tags: 30, minutes: 10, seconds: 05, isRecorded: true },
-            { id: 'team_5', day: '금', slot: '2부', detailInfo: 'B구역', teamName: '챌린저스', members: '홍길동, 신사임당', tags: 22, minutes: 15, seconds: 30, isRecorded: true }
-        ];
-
-        // --- Navigation & Auth Handler Functions ---
         function switchView(view) {
             currentView = view;
             const dashView = document.getElementById('dashboardView');
@@ -535,45 +545,75 @@
             renderPadletGrid();
         }
 
-        // --- STREAMING_CHUNK: Leaderboard Ranking Logic & Podium Renderer ---
         function renderLeaderboard() {
             let filtered = [...records];
             if (currentFilterDay !== 'ALL') {
                 filtered = filtered.filter(r => r.day === currentFilterDay);
             }
 
-            // Filter recorded teams vs unrecorded teams
-            const recordedTeams = filtered.filter(r => r.isRecorded || r.tags > 0);
+            const recordedTeams = filtered.filter(r => r.isRecorded || r.tags > 0 || r.minutes > 0 || r.seconds > 0);
+            const displayTeams = [...filtered].sort((a, b) => {
+                const recordedA = a.isRecorded || a.tags > 0 || a.minutes > 0 || a.seconds > 0;
+                const recordedB = b.isRecorded || b.tags > 0 || b.minutes > 0 || b.seconds > 0;
+                if (recordedA !== recordedB) return recordedB - recordedA;
 
-            // Sort logic: 1st priority Tags (desc), 2nd priority Time in seconds (asc)
-            recordedTeams.sort((a, b) => {
-                if (b.tags !== a.tags) {
-                    return b.tags - a.tags;
-                }
-                const timeA = (a.minutes || 0) * 60 + (a.seconds || 0);
-                const timeB = (b.minutes || 0) * 60 + (b.seconds || 0);
+                const tagsDiff = Number(b.tags || 0) - Number(a.tags || 0);
+                if (tagsDiff !== 0) return tagsDiff;
+                const timeA = Number(a.minutes || 0) * 60 + Number(a.seconds || 0);
+                const timeB = Number(b.minutes || 0) * 60 + Number(b.seconds || 0);
                 return timeA - timeB;
             });
 
-            // Update Header Stats
-            document.getElementById('statTotalTeams').innerText = `${records.length}팀`;
+            // 정렬 기준: 1순위 수집 태그 수(내림차순) ➔ 2순위 총 소요 시간 초(오름차순)
+            recordedTeams.sort((a, b) => {
+                const tagsA = Number(a.tags || 0);
+                const tagsB = Number(b.tags || 0);
+                
+                if (tagsB !== tagsA) {
+                    return tagsB - tagsA;
+                }
+                const timeA = Number(a.minutes || 0) * 60 + Number(a.seconds || 0);
+                const timeB = Number(b.minutes || 0) * 60 + Number(b.seconds || 0);
+                return timeA - timeB;
+            });
+
+            const statTotalEl = document.getElementById('statTotalTeams');
+            if (statTotalEl) statTotalEl.innerText = `${records.length}팀`;
             
             if (recordedTeams.length > 0) {
-                const maxTags = Math.max(...recordedTeams.map(t => t.tags || 0));
-                document.getElementById('statMaxTags').innerText = `${maxTags}개 / 30개`;
+                const maxTags = Math.max(...recordedTeams.map(t => Number(t.tags || 0)));
+                const statMaxEl = document.getElementById('statMaxTags');
+                if (statMaxEl) statMaxEl.innerText = `${maxTags}개 / 30개`;
 
-                const bestTeam = recordedTeams[0];
-                const minPad = String(bestTeam.minutes || 0).padStart(2, '0');
-                const secPad = String(bestTeam.seconds || 0).padStart(2, '0');
-                document.getElementById('statBestTime').innerText = `${minPad}:${secPad}`;
-                document.getElementById('statLeaderTeam').innerText = bestTeam.teamName;
+                const times = recordedTeams.map(t => ({
+                    totalSec: Number(t.minutes || 0) * 60 + Number(t.seconds || 0),
+                    min: Number(t.minutes || 0),
+                    sec: Number(t.seconds || 0)
+                })).filter(t => t.totalSec > 0);
+
+                const statBestEl = document.getElementById('statBestTime');
+                if (times.length > 0 && statBestEl) {
+                    times.sort((a, b) => a.totalSec - b.totalSec);
+                    const best = times[0];
+                    const minPad = String(best.min).padStart(2, '0');
+                    const secPad = String(best.sec).padStart(2, '0');
+                    statBestEl.innerText = `${minPad}:${secPad}`;
+                } else if (statBestEl) {
+                    statBestEl.innerText = `--:--`;
+                }
+
+                const statLeaderEl = document.getElementById('statLeaderTeam');
+                if (statLeaderEl) statLeaderEl.innerText = recordedTeams[0].teamName;
             } else {
-                document.getElementById('statMaxTags').innerText = `0개 / 30개`;
-                document.getElementById('statBestTime').innerText = `--:--`;
-                document.getElementById('statLeaderTeam').innerText = `기록 없음`;
+                const statMaxEl = document.getElementById('statMaxTags');
+                const statBestEl = document.getElementById('statBestTime');
+                const statLeaderEl = document.getElementById('statLeaderTeam');
+                if (statMaxEl) statMaxEl.innerText = `0개 / 30개`;
+                if (statBestEl) statBestEl.innerText = `--:--`;
+                if (statLeaderEl) statLeaderEl.innerText = `기록 없음`;
             }
 
-            // Render Podium (TOP 3)
+            // TOP 3 Podium Generation
             const podiumContainer = document.getElementById('podiumContainer');
             if (podiumContainer) {
                 podiumContainer.innerHTML = '';
@@ -600,25 +640,25 @@
                         const secP = String(t.seconds || 0).padStart(2, '0');
 
                         const podiumHtml = `
-                            <div class="clean-card ${item.badge} rounded-3xl p-5 flex flex-col justify-between shadow-xs relative overflow-hidden">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="text-xs font-black px-3 py-1 rounded-full bg-slate-100 ${item.color}">
+                            <div class="clean-card ${item.badge} rounded-3xl p-4 flex flex-col justify-between shadow-xs relative overflow-hidden">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs font-black px-3 py-0.5 rounded-full bg-slate-100 ${item.color}">
                                         <i class="fa-solid fa-medal mr-1"></i>${item.label}
                                     </span>
-                                    <span class="text-xs font-extrabold text-slate-400">${t.day}요일 / ${t.slot}</span>
+                                    <span class="text-[11px] font-extrabold text-slate-400">${t.day}요일 / ${t.slot}</span>
                                 </div>
-                                <div class="mb-4">
-                                    <h3 class="text-lg font-black text-slate-900 truncate">${t.teamName}</h3>
-                                    <p class="text-xs text-slate-500 font-bold truncate mt-0.5"><i class="fa-solid fa-user-group text-[10px] mr-1"></i>${t.members || '팀원 미지정'}</p>
+                                <div class="mb-3">
+                                    <h3 class="text-base font-black text-slate-900 truncate">${t.teamName}</h3>
+                                    <p class="text-xs text-slate-500 font-bold truncate mt-0.5"><i class="fa-solid fa-users text-slate-400 mr-1"></i>${t.members || '팀원 미기재'}</p>
                                 </div>
-                                <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs font-black">
-                                    <div class="text-blue-600">
-                                        <span class="text-slate-400 font-bold text-[10px] block">수집 태그</span>
-                                        <span class="text-base">${t.tags || 0}개</span>
+                                <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-center">
+                                    <div class="bg-slate-50 rounded-xl p-2">
+                                        <span class="text-[10px] text-slate-400 font-black block">수집 태그</span>
+                                        <span class="text-sm font-black text-blue-600">${t.tags || 0}개</span>
                                     </div>
-                                    <div class="text-slate-800 text-right">
-                                        <span class="text-slate-400 font-bold text-[10px] block">소요 시간</span>
-                                        <span class="text-base">${minP}:${secP}</span>
+                                    <div class="bg-slate-50 rounded-xl p-2">
+                                        <span class="text-[10px] text-slate-400 font-black block">소요 시간</span>
+                                        <span class="text-sm font-black text-slate-800">${minP}:${secP}</span>
                                     </div>
                                 </div>
                             </div>
@@ -628,48 +668,43 @@
                 }
             }
 
-            // Render Table Rows
+            // Ranking Table Body Generation
             const tbody = document.getElementById('rankingTableBody');
+            const rankCountBadge = document.getElementById('rankCountBadge');
             const emptyState = document.getElementById('emptyState');
-            const countBadge = document.getElementById('rankCountBadge');
 
             if (tbody) {
                 tbody.innerHTML = '';
-
-                if (recordedTeams.length === 0) {
+                if (displayTeams.length === 0) {
                     if (emptyState) emptyState.classList.remove('hidden');
-                    if (countBadge) countBadge.innerText = '총 0개 팀';
+                    if (rankCountBadge) rankCountBadge.innerText = '총 0개 팀';
                 } else {
                     if (emptyState) emptyState.classList.add('hidden');
-                    if (countBadge) countBadge.innerText = `총 ${recordedTeams.length}개 팀`;
+                    if (rankCountBadge) rankCountBadge.innerText = `총 ${displayTeams.length}개 팀`;
 
-                    recordedTeams.forEach((t, idx) => {
-                        const rank = idx + 1;
+                    displayTeams.forEach((t, index) => {
+                        const rankNum = index + 1;
+                        const hasRecord = t.isRecorded || t.tags > 0 || t.minutes > 0 || t.seconds > 0;
                         let rankBadgeClass = 'bg-slate-100 text-slate-600';
-                        if (rank === 1) rankBadgeClass = 'bg-amber-100 text-amber-700 font-black';
-                        else if (rank === 2) rankBadgeClass = 'bg-slate-200 text-slate-700 font-black';
-                        else if (rank === 3) rankBadgeClass = 'bg-amber-50 text-amber-800 font-black';
+                        if (rankNum === 1) rankBadgeClass = 'bg-amber-100 text-amber-800 font-black';
+                        else if (rankNum === 2) rankBadgeClass = 'bg-slate-200 text-slate-800 font-black';
+                        else if (rankNum === 3) rankBadgeClass = 'bg-amber-50 text-amber-700 font-black';
 
                         const minP = String(t.minutes || 0).padStart(2, '0');
                         const secP = String(t.seconds || 0).padStart(2, '0');
-                        const score = (t.tags || 0) * 100 - ((t.minutes || 0) * 60 + (t.seconds || 0));
+                        const scoreCalc = (Number(t.tags || 0) * 100) - (Number(t.minutes || 0) * 60 + Number(t.seconds || 0));
 
                         const rowHtml = `
                             <tr class="hover:bg-slate-50/80 transition-colors">
-                                <td class="py-3 px-5 text-center">
-                                    <span class="w-7 h-7 inline-flex items-center justify-center rounded-full text-xs ${rankBadgeClass}">
-                                        ${rank}
-                                    </span>
+                                <td class="py-3 px-4 text-center">
+                                    <span class="inline-block w-6 h-6 rounded-lg ${rankBadgeClass} leading-6 text-xs">${rankNum}</span>
                                 </td>
-                                <td class="py-3 px-5 font-black text-slate-900">${t.teamName}</td>
-                                <td class="py-3 px-5 font-bold text-slate-500">
-                                    <span class="bg-slate-100 px-2 py-0.5 rounded text-[11px] mr-1">${t.day}요일</span>
-                                    <span class="bg-slate-100 px-2 py-0.5 rounded text-[11px]">${t.slot} ${t.detailInfo ? '(' + t.detailInfo + ')' : ''}</span>
-                                </td>
-                                <td class="py-3 px-5 text-slate-600 font-semibold">${t.members || '-'}</td>
-                                <td class="py-3 px-5 text-center font-black text-blue-600">${t.tags || 0}개</td>
-                                <td class="py-3 px-5 text-center font-mono font-bold text-slate-700">${minP}:${secP}</td>
-                                <td class="py-3 px-5 text-center font-black text-emerald-600">${score > 0 ? score : 0}점</td>
+                                <td class="py-3 px-4 font-black text-slate-900">${t.teamName}${hasRecord ? '' : ' <span class="text-[10px] font-bold text-slate-400">진행 대기</span>'}</td>
+                                <td class="py-3 px-4 text-slate-500 font-bold">${t.day}요일 / ${t.slot} (${t.detailInfo || '-'})</td>
+                                <td class="py-3 px-4 text-slate-600 font-bold truncate max-w-xs">${t.members || '-'}</td>
+                                <td class="py-3 px-4 text-center font-black text-blue-600">${t.tags || 0}개</td>
+                                <td class="py-3 px-4 text-center font-mono font-bold text-slate-700">${minP}:${secP}</td>
+                                <td class="py-3 px-4 text-center font-black text-emerald-600">${scoreCalc > 0 ? scoreCalc : 0}점</td>
                             </tr>
                         `;
                         tbody.insertAdjacentHTML('beforeend', rowHtml);
@@ -678,104 +713,91 @@
             }
         }
 
-        // --- STREAMING_CHUNK: Admin Padlet Grid Renderer ---
         function renderPadletGrid() {
             const grid = document.getElementById('padletGrid');
             if (!grid) return;
 
-            const slotFilter = document.getElementById('padletSlotFilter')?.value || 'ALL';
-            const searchQuery = (document.getElementById('padletSearchInput')?.value || '').toLowerCase().trim();
-
-            let list = [...records];
-
+            let filtered = [...records];
+            
             if (padletFilterDay !== 'ALL') {
-                list = list.filter(r => r.day === padletFilterDay);
+                filtered = filtered.filter(r => r.day === padletFilterDay);
             }
-            if (slotFilter !== 'ALL') {
-                list = list.filter(r => r.slot === slotFilter);
+
+            const slotVal = document.getElementById('padletSlotFilter')?.value || 'ALL';
+            if (slotVal !== 'ALL') {
+                filtered = filtered.filter(r => r.slot === slotVal);
             }
-            if (searchQuery) {
-                list = list.filter(r => 
-                    (r.teamName && r.teamName.toLowerCase().includes(searchQuery)) ||
-                    (r.members && r.members.toLowerCase().includes(searchQuery))
+
+            const searchVal = document.getElementById('padletSearchInput')?.value.toLowerCase().trim() || '';
+            if (searchVal) {
+                filtered = filtered.filter(r => 
+                    r.teamName.toLowerCase().includes(searchVal) || 
+                    r.members.toLowerCase().includes(searchVal)
                 );
             }
 
             grid.innerHTML = '';
 
-            if (list.length === 0) {
+            if (filtered.length === 0) {
                 grid.innerHTML = `
-                    <div class="col-span-full clean-card rounded-2xl p-12 text-center text-slate-400 font-bold text-sm">
-                        <i class="fa-solid fa-folder-open text-3xl text-slate-300 block mb-2"></i>
-                        구글 시트에서 가져온 팀 정보가 없거나 검색 조건에 맞는 팀이 없습니다.
+                    <div class="col-span-full clean-card rounded-2xl p-8 text-center text-slate-400 font-bold text-xs">
+                        <i class="fa-solid fa-folder-open text-3xl mb-2 text-slate-300 block"></i>
+                        조회된 참가 신청 내역이 없습니다.
                     </div>
                 `;
                 return;
             }
 
-            list.forEach(team => {
-                const isRecorded = team.isRecorded || team.tags > 0;
+            filtered.forEach(team => {
                 const cardHtml = `
-                    <div class="clean-card rounded-3xl p-5 flex flex-col justify-between shadow-xs border border-slate-200/80 bg-white">
+                    <div class="padlet-card rounded-3xl p-5 shadow-xs flex flex-col justify-between">
                         <div>
-                            <!-- Header Info & Status Badge -->
-                            <div class="flex items-center justify-between gap-2 mb-4">
-                                <div class="flex items-center gap-2">
-                                    <div class="bg-slate-100 text-slate-800 text-xs font-black px-3 py-1.5 rounded-xl border border-slate-200/60 flex items-center gap-1">
-                                        <span>${team.day}요일</span>
-                                    </div>
-                                    <div class="bg-slate-100 text-slate-800 text-xs font-black px-3 py-1.5 rounded-xl border border-slate-200/60 flex items-center gap-1">
-                                        <span>${team.slot}</span>
-                                    </div>
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="px-2.5 py-1 rounded-xl bg-blue-50 text-blue-600 text-xs font-black border border-blue-100">${team.day}요일</span>
+                                    <span class="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 text-xs font-black">${team.slot}</span>
                                 </div>
-                                <span class="text-[11px] font-black px-3 py-1 rounded-full ${isRecorded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}">
-                                    ${isRecorded ? '입력완료' : '미입력'}
+                                <span class="text-[10px] font-extrabold ${team.isRecorded ? 'text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200' : 'text-slate-400'}">
+                                    ${team.isRecorded ? '● 성적기입 완료' : '○ 미입력'}
                                 </span>
                             </div>
 
-                            <!-- Team Name Field -->
                             <div class="mb-3">
-                                <label class="text-[11px] font-extrabold text-slate-400 block mb-1">팀명</label>
-                                <input type="text" id="teamName_${team.id}" value="${team.teamName}" class="w-full bg-slate-50/70 border border-slate-200/80 rounded-2xl px-4 py-2.5 font-black text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <label class="text-[11px] font-extrabold text-slate-400 block mb-1">팀명 (E열: 팀이름)</label>
+                                <input type="text" value="${team.teamName}" readonly class="w-full bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 font-black text-slate-900 text-sm focus:outline-none">
                             </div>
 
-                            <!-- Team Members Field -->
                             <div class="mb-4">
-                                <label class="text-[11px] font-extrabold text-slate-400 block mb-1">팀원 명단</label>
-                                <input type="text" id="members_${team.id}" value="${team.members || ''}" placeholder="팀원 이름 입력" class="w-full bg-slate-50/70 border border-slate-200/80 rounded-2xl px-4 py-2.5 font-black text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <label class="text-[11px] font-extrabold text-slate-400 block mb-1">팀원 명단 (G열: 참여자명단)</label>
+                                <input type="text" value="${team.members || ''}" readonly class="w-full bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 font-black text-slate-700 text-xs focus:outline-none">
                             </div>
 
-                            <!-- Score Entry Box -->
-                            <div class="p-3.5 bg-slate-50/40 rounded-2xl border border-slate-200/80 mb-4">
+                            <div class="p-3.5 bg-blue-50/40 rounded-2xl border border-blue-100 mb-4">
                                 <div class="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label class="text-[11px] font-extrabold text-slate-600 block mb-1.5">
-                                            수집 태그 수 (개)
+                                        <label class="text-[11px] font-extrabold text-blue-900 block mb-1.5">
+                                            수집 태그 수 (I열)
                                         </label>
-                                        <input type="number" id="tags_${team.id}" min="0" max="30" value="${team.tags || 0}" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-black text-blue-600 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <input type="number" id="tags_${team.id}" min="0" max="30" value="${team.tags || 0}" class="w-full px-3 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-blue-600 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
                                     </div>
                                     
                                     <div>
-                                        <label class="text-[11px] font-extrabold text-slate-600 block mb-1.5">
-                                            소요시간 (분:초)
+                                        <label class="text-[11px] font-extrabold text-blue-900 block mb-1.5">
+                                            소요시간 (J열) (분:초)
                                         </label>
                                         <div class="flex items-center justify-center gap-1.5">
-                                            <input type="number" id="min_${team.id}" min="0" max="99" value="${team.minutes || 0}" class="w-14 px-2 py-2 rounded-xl bg-white border border-slate-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <input type="number" id="min_${team.id}" min="0" max="99" value="${team.minutes || 0}" placeholder="분" class="w-14 px-2 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
                                             <span class="font-bold text-slate-400">:</span>
-                                            <input type="number" id="sec_${team.id}" min="0" max="59" value="${team.seconds || 0}" class="w-14 px-2 py-2 rounded-xl bg-white border border-slate-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <input type="number" id="sec_${team.id}" min="0" max="59" value="${team.seconds || 0}" placeholder="초" class="w-14 px-2 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Card Footer Action Buttons -->
-                        <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-                            <button onclick="deleteTeamRecord('${team.id}')" class="text-xs font-extrabold text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-1.5 px-2 py-1">
-                                <i class="fa-regular fa-trash-can"></i> 삭제
-                            </button>
-                            <button onclick="saveTeamRecord('${team.id}')" class="px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-sm transition-all flex items-center gap-1.5">
-                                <i class="fa-solid fa-check"></i> 저장
+                        <div class="pt-2 border-t border-slate-100 flex items-center justify-end">
+                            <button onclick="saveTeamRecord('${team.id}')" class="w-full py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-sm transition-all flex items-center justify-center gap-1.5">
+                                <i class="fa-solid fa-check"></i> 저장 (구글 시트 즉시 전송)
                             </button>
                         </div>
                     </div>
@@ -784,65 +806,49 @@
             });
         }
 
-        // --- Save & Delete Record Helpers ---
-        function saveTeamRecord(id) {
+        async function saveTeamRecord(id) {
             const idx = records.findIndex(r => r.id === id);
             if (idx === -1) return;
 
-            const tags = parseInt(document.getElementById(`tags_${id}`)?.value || 0);
-            const minutes = parseInt(document.getElementById(`min_${id}`)?.value || 0);
-            const seconds = parseInt(document.getElementById(`sec_${id}`)?.value || 0);
-            const teamName = document.getElementById(`teamName_${id}`)?.value?.trim() || records[idx].teamName;
-            const members = document.getElementById(`members_${id}`)?.value?.trim() ?? records[idx].members;
+            const tags = parseInt(document.getElementById(`tags_${id}`)?.value || 0, 10);
+            const minutes = parseInt(document.getElementById(`min_${id}`)?.value || 0, 10);
+            const seconds = parseInt(document.getElementById(`sec_${id}`)?.value || 0, 10);
 
             records[idx] = {
                 ...records[idx],
-                teamName,
-                members,
                 tags,
                 minutes,
                 seconds,
-                isRecorded: true
+                isRecorded: (tags > 0 || minutes > 0 || seconds > 0)
             };
 
             saveRecordsToStorage();
             renderPadletGrid();
             renderLeaderboard();
-            showToast(`'${records[idx].teamName}' 팀 성적이 저장되었습니다!`, "success");
+            showToast(`'${records[idx].teamName}' 팀 점수가 저장되었습니다! (구글 시트 전송 중)`, "info");
 
-            syncSingleRecordToAppsScript(records[idx]);
+            await syncSingleRecordToAppsScript(records[idx]);
         }
 
-        function deleteTeamRecord(id) {
-            const team = records.find(r => r.id === id);
-            if (!team) return;
-            
-            records = records.filter(r => r.id !== id);
-            saveRecordsToStorage();
-            renderPadletGrid();
-            renderLeaderboard();
-            showToast(`'${team.teamName}' 카드가 삭제되었습니다.`, "info");
-        }
-
-        // --- STREAMING_CHUNK: Google Apps Script Data Sync ---
         async function fetchDataFromAppsScript(isSilent = false) {
             const badgeEl = document.getElementById('teamsLoadedBadge');
             try {
-                const response = await fetch(GAS_WEBAPP_URL);
+                const response = await fetch(GAS_WEBAPP_URL + '?t=' + new Date().getTime());
                 if (response.ok) {
                     const data = await response.json();
                     let rawList = [];
                     if (Array.isArray(data)) {
                         rawList = data;
                     } else if (data && typeof data === 'object') {
-                        rawList = data.data || data.records || data.result || data.items || [];
+                        rawList = data.data || data.records || data.result || data.items || data.reservations || data.rows || [];
                     }
 
                     if (rawList.length > 0 && Array.isArray(rawList[0])) {
                         const headers = rawList[0];
-                        rawList = rawList.slice(1).map(row => {
+                        rawList = rawList.slice(1).map((row, rIdx) => {
                             const obj = {};
                             headers.forEach((h, i) => { obj[h] = row[i]; });
+                            obj['rowNum'] = rIdx + 2;
                             obj['_colB'] = row[1];
                             obj['_colC'] = row[2];
                             obj['_colD'] = row[3];
@@ -856,33 +862,35 @@
 
                     if (Array.isArray(rawList) && rawList.length > 0) {
                         records = rawList.map((item, idx) => {
-                            let rawDay = String(item._colB || item.day || item['요일'] || '수').trim();
+                            let rowNum = item.rowNum || (idx + 2);
+                            let rawDay = String(item.day || item._colB || item['요일'] || '수').trim();
                             if (rawDay.includes('수')) rawDay = '수';
                             else if (rawDay.includes('목')) rawDay = '목';
                             else if (rawDay.includes('금')) rawDay = '금';
 
-                            let rawSlot = String(item._colC || item.slot || item['타임'] || '1부').trim();
-                            let rawDetail = String(item._colD || item.detail || item['구분'] || '').trim();
-                            let tName = String(item._colE || item.teamName || item['팀명'] || `팀 ${idx + 1}`).trim();
-                            let mMembers = String(item._colG || item.members || item['팀원'] || '').trim();
+                            let rawSlot = String(item.slot || item._colC || item['부'] || item['타임'] || '1부').trim();
+                            let rawDetail = String(item.detailInfo || item._colD || item['시간대'] || item['구분'] || '').trim();
+                            let tName = String(item.teamName || item._colE || item['팀이름'] || item['팀명'] || `팀 ${idx + 1}`).trim();
+                            let mMembers = String(item.members || item._colG || item['참여자명단'] || item['팀원'] || '').trim();
 
-                            let tagVal = item._colI ?? item.tags ?? 0;
+                            let tagVal = item.tags ?? item._colI ?? item['수집태그'] ?? item['수집 태그 수'] ?? 0;
                             let minVal = item.minutes ?? 0;
                             let secVal = item.seconds ?? 0;
 
-                            const jTimeStr = String(item._colJ || item['소요시간'] || '');
-                            if (jTimeStr && jTimeStr.includes(':')) {
-                                const parts = jTimeStr.split(':');
-                                minVal = parseInt(parts[0]) || minVal;
-                                secVal = parseInt(parts[1]) || secVal;
+                            const timeStr = String(item.timeStr || item._colJ || item['소요시간'] || '');
+                            if (timeStr && timeStr.includes(':')) {
+                                const parts = timeStr.split(':');
+                                minVal = parseInt(parts[0], 10) || minVal;
+                                secVal = parseInt(parts[1], 10) || secVal;
                             }
 
-                            const parsedTags = parseInt(tagVal) || 0;
-                            const parsedMin = parseInt(minVal) || 0;
-                            const parsedSec = parseInt(secVal) || 0;
+                            const parsedTags = parseInt(tagVal, 10) || 0;
+                            const parsedMin = parseInt(minVal, 10) || 0;
+                            const parsedSec = parseInt(secVal, 10) || 0;
 
                             return {
-                                id: String(item.id || ('team_row_' + (idx + 1))),
+                                rowNum: rowNum,
+                                id: item.id || ('row_' + rowNum),
                                 day: rawDay,
                                 slot: rawSlot,
                                 detailInfo: rawDetail,
@@ -897,54 +905,84 @@
 
                         saveRecordsToStorage();
                         renderLeaderboard();
-                        if (currentView === 'admin') renderPadletGrid();
+                        
+                        // 사용자가 제어실에서 입력 중일 때는 Grid 재렌더링으로 포커스가 깨지지 않도록 방지
+                        const activeEl = document.activeElement;
+                        const isEditingInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT') && /^(tags|min|sec)_/.test(activeEl.id);
+                        
+                        if (currentView === 'admin' && !isEditingInput) {
+                            renderPadletGrid();
+                        }
+                        
                         if (badgeEl) {
                             badgeEl.classList.remove('hidden');
-                            badgeEl.innerText = `시트 B,C,D,E,G 연동 완료 (${records.length}팀)`;
+                            badgeEl.innerText = `시트 연동 완료 (${records.length}팀)`;
+                        }
+                    } else {
+                        if (data && data.capacities) {
+                            if (badgeEl) {
+                                badgeEl.classList.remove('hidden');
+                                badgeEl.innerText = 'GAS 응답에 예약 행 없음';
+                            }
+                            if (!isSilent) showToast("GAS가 예약 행 대신 수용 인원 정보만 반환하고 있습니다. doGet에서 예약 행을 반환해 주세요.", "warning");
+                        } else if (!isSilent) {
+                            showToast("구글 시트에서 불러올 예약 내역이 없습니다.", "warning");
                         }
                     }
+                } else {
+                    if (!isSilent) showToast(`연동 실패 (응답 코드: ${response.status})`, "warning");
                 }
             } catch (err) {
-                if (!isSilent) console.error("Google Apps Script 데이터 수신 오류:", err);
+                console.error("GAS 연동 오류:", err);
+                if (!isSilent) showToast("구글 시트 연동 오류가 발생하였습니다.", "warning");
             }
         }
 
         async function syncWithGoogleAppScript() {
             showToast("구글 시트 데이터를 새로고침하고 있습니다...", "info");
             await fetchDataFromAppsScript(false);
-            showToast("최신 팀 정보 동기화 완료!", "success");
+            showToast("최신 예약 팀 목록 동기화 완료!", "success");
         }
 
         async function syncSingleRecordToAppsScript(record) {
             try {
                 const payload = {
                     action: 'updateRecord',
+                    rowNum: record.rowNum,
                     id: record.id,
                     teamName: record.teamName,
                     tags: record.tags,
                     minutes: record.minutes,
-                    seconds: record.seconds,
-                    isRecorded: true
+                    seconds: record.seconds
                 };
                 
                 await fetch(GAS_WEBAPP_URL, {
                     method: 'POST',
                     mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify(payload)
                 });
+                
+                showToast(`'${record.teamName}' 구글 시트 반영 완료!`, "success");
             } catch (err) {
-                console.error("단일 기록 동기화 중 오류:", err);
+                console.error("단일 기록 동기화 오류:", err);
+                showToast("구글 시트 저장 중 오류가 발생하였습니다.", "warning");
             }
         }
 
-        // --- Clock & Ticker Utils ---
         function startClock() {
             setInterval(() => {
                 const now = new Date();
                 const clockEl = document.getElementById('liveClock');
                 if (clockEl) clockEl.innerText = now.toTimeString().split(' ')[0];
             }, 1000);
+        }
+
+        function setupPeriodicAutoRefresh() {
+            // 5초마다 구글 시트 최신 예약 및 성적 자동 수신 (모든 기기 실시간 동기화)
+            setInterval(() => {
+                fetchDataFromAppsScript(true);
+            }, 5000);
         }
 
         function loadSavedTickerMessage() {
@@ -975,7 +1013,6 @@
             showToast("전광판 자막 문구가 업데이트되었습니다!", "success");
         }
 
-        // --- STREAMING_CHUNK: Auto Scroll & Storage Helpers ---
         function setupAutoScroll() {
             const container = document.getElementById('rankingTableScrollContainer');
             if (!container) return;
@@ -1021,10 +1058,8 @@
                 } catch (e) { 
                     records = []; 
                 }
-            }
-            if (!records || records.length === 0) {
-                records = defaultSampleRecords;
-                saveRecordsToStorage();
+            } else {
+                records = [];
             }
         }
 
@@ -1077,7 +1112,6 @@
             }, 3000);
         }
 
-        // --- Initial Load Sequence ---
         window.addEventListener('DOMContentLoaded', () => {
             loadFromStorage();
             loadSavedTickerMessage();
@@ -1085,6 +1119,7 @@
             renderLeaderboard();
             setupAutoScroll();
             fetchDataFromAppsScript(true);
+            setupPeriodicAutoRefresh();
         });
     </script>
 </body>
