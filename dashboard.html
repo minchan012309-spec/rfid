@@ -443,6 +443,128 @@
         const ADMIN_PASSCODE = "1004";
         const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzPIXzqV-H5lzuT_-2z6gojyh8KqRonuzrZNPpmXBD91F6EM-Mzsu4EGMfTZDd_PA0vdw/exec";
 
+        function toSafeInt(value) {
+            const num = Number(value);
+            if (!Number.isFinite(num)) return 0;
+            return Math.floor(num);
+        }
+
+        function normalizeTime(minutesValue, secondsValue) {
+            let minutes = toSafeInt(minutesValue);
+            let seconds = toSafeInt(secondsValue);
+            if (minutes < 0) minutes = 0;
+            if (seconds < 0) seconds = 0;
+
+            const totalSeconds = (minutes * 60) + seconds;
+            return {
+                totalSeconds,
+                minutes: Math.floor(totalSeconds / 60),
+                seconds: totalSeconds % 60
+            };
+        }
+
+        function parseJColumnTime(rawTime) {
+            const text = String(rawTime || '').trim();
+            if (!text) return null;
+            const parts = text.split(':');
+            if (parts.length < 2) return null;
+            return {
+                minutes: toSafeInt(parts[0]),
+                seconds: toSafeInt(parts[1])
+            };
+        }
+
+        function getNormalizedTimeFromRecord(record) {
+            const fromTimeStr = parseJColumnTime(record?.timeStr);
+            const minutes = fromTimeStr ? fromTimeStr.minutes : record?.minutes;
+            const seconds = fromTimeStr ? fromTimeStr.seconds : record?.seconds;
+            return normalizeTime(minutes, seconds);
+        }
+
+        function formatTimeByTotalSeconds(totalSeconds) {
+            const safeTotal = Math.max(0, toSafeInt(totalSeconds));
+            const minPad = String(Math.floor(safeTotal / 60)).padStart(2, '0');
+            const secPad = String(safeTotal % 60).padStart(2, '0');
+            return `${minPad}:${secPad}`;
+        }
+
+        function normalizeManualRankValue(value) {
+            if (value === '' || value === null || value === undefined) return null;
+            const rank = toSafeInt(value);
+            return rank > 0 ? rank : null;
+        }
+
+        function hasRecordedScore(team) {
+            const tags = Math.max(0, toSafeInt(team?.tags));
+            const time = getNormalizedTimeFromRecord(team);
+            return Boolean(team?.isRecorded) || tags > 0 || time.totalSeconds > 0;
+        }
+
+        function compareAutoRank(a, b) {
+            const recordedA = hasRecordedScore(a);
+            const recordedB = hasRecordedScore(b);
+            if (recordedA !== recordedB) return recordedB - recordedA;
+
+            const tagsDiff = Math.max(0, toSafeInt(b?.tags)) - Math.max(0, toSafeInt(a?.tags));
+            if (tagsDiff !== 0) return tagsDiff;
+
+            const timeDiff = getNormalizedTimeFromRecord(a).totalSeconds - getNormalizedTimeFromRecord(b).totalSeconds;
+            if (timeDiff !== 0) return timeDiff;
+
+            const nameDiff = String(a?.teamName || '').localeCompare(String(b?.teamName || ''), 'ko');
+            if (nameDiff !== 0) return nameDiff;
+            return String(a?.id || '').localeCompare(String(b?.id || ''), 'ko');
+        }
+
+        function buildDisplayOrderByManualRank(sourceTeams) {
+            const autoSorted = [...sourceTeams].sort(compareAutoRank);
+            const manualBuckets = new Map();
+            const autoOnly = [];
+
+            autoSorted.forEach(team => {
+                const manualRank = normalizeManualRankValue(team.manualRank);
+                if (manualRank === null) {
+                    autoOnly.push(team);
+                    return;
+                }
+                if (!manualBuckets.has(manualRank)) manualBuckets.set(manualRank, []);
+                manualBuckets.get(manualRank).push(team);
+            });
+
+            manualBuckets.forEach(bucket => bucket.sort(compareAutoRank));
+
+            const ordered = [];
+            let autoIdx = 0;
+            let position = 1;
+            const total = autoSorted.length;
+
+            // 수동 순위가 있는 팀을 우선 배치하고, 빈 순위는 자동 정렬 팀으로 채웁니다.
+            while (ordered.length < total && position <= total) {
+                const bucket = manualBuckets.get(position);
+                if (bucket && bucket.length > 0) {
+                    ordered.push(...bucket);
+                    manualBuckets.delete(position);
+                } else if (autoIdx < autoOnly.length) {
+                    ordered.push(autoOnly[autoIdx]);
+                    autoIdx += 1;
+                }
+                position += 1;
+            }
+
+            if (autoIdx < autoOnly.length) {
+                ordered.push(...autoOnly.slice(autoIdx));
+            }
+
+            const remainedManual = [...manualBuckets.entries()]
+                .sort((a, b) => a[0] - b[0])
+                .flatMap(([, teams]) => teams);
+            if (remainedManual.length > 0) {
+                ordered.push(...remainedManual);
+            }
+
+            return ordered.slice(0, total);
+        }
+
         function switchView(view) {
             currentView = view;
             const dashView = document.getElementById('dashboardView');
@@ -551,53 +673,26 @@
                 filtered = filtered.filter(r => r.day === currentFilterDay);
             }
 
-            const recordedTeams = filtered.filter(r => r.isRecorded || r.tags > 0 || r.minutes > 0 || r.seconds > 0);
-            const displayTeams = [...filtered].sort((a, b) => {
-                const recordedA = a.isRecorded || a.tags > 0 || a.minutes > 0 || a.seconds > 0;
-                const recordedB = b.isRecorded || b.tags > 0 || b.minutes > 0 || b.seconds > 0;
-                if (recordedA !== recordedB) return recordedB - recordedA;
-
-                const tagsDiff = Number(b.tags || 0) - Number(a.tags || 0);
-                if (tagsDiff !== 0) return tagsDiff;
-                const timeA = Number(a.minutes || 0) * 60 + Number(a.seconds || 0);
-                const timeB = Number(b.minutes || 0) * 60 + Number(b.seconds || 0);
-                return timeA - timeB;
-            });
-
-            // 정렬 기준: 1순위 수집 태그 수(내림차순) ➔ 2순위 총 소요 시간 초(오름차순)
-            recordedTeams.sort((a, b) => {
-                const tagsA = Number(a.tags || 0);
-                const tagsB = Number(b.tags || 0);
-                
-                if (tagsB !== tagsA) {
-                    return tagsB - tagsA;
-                }
-                const timeA = Number(a.minutes || 0) * 60 + Number(a.seconds || 0);
-                const timeB = Number(b.minutes || 0) * 60 + Number(b.seconds || 0);
-                return timeA - timeB;
-            });
+            const displayTeams = buildDisplayOrderByManualRank(filtered);
+            const recordedTeams = displayTeams.filter(hasRecordedScore);
 
             const statTotalEl = document.getElementById('statTotalTeams');
             if (statTotalEl) statTotalEl.innerText = `${records.length}팀`;
             
             if (recordedTeams.length > 0) {
-                const maxTags = Math.max(...recordedTeams.map(t => Number(t.tags || 0)));
+                const maxTags = Math.max(...recordedTeams.map(t => Math.max(0, toSafeInt(t.tags))));
                 const statMaxEl = document.getElementById('statMaxTags');
                 if (statMaxEl) statMaxEl.innerText = `${maxTags}개 / 30개`;
 
-                const times = recordedTeams.map(t => ({
-                    totalSec: Number(t.minutes || 0) * 60 + Number(t.seconds || 0),
-                    min: Number(t.minutes || 0),
-                    sec: Number(t.seconds || 0)
-                })).filter(t => t.totalSec > 0);
+                const times = recordedTeams
+                    .map(t => getNormalizedTimeFromRecord(t))
+                    .filter(t => t.totalSeconds > 0);
 
                 const statBestEl = document.getElementById('statBestTime');
                 if (times.length > 0 && statBestEl) {
-                    times.sort((a, b) => a.totalSec - b.totalSec);
+                    times.sort((a, b) => a.totalSeconds - b.totalSeconds);
                     const best = times[0];
-                    const minPad = String(best.min).padStart(2, '0');
-                    const secPad = String(best.sec).padStart(2, '0');
-                    statBestEl.innerText = `${minPad}:${secPad}`;
+                    statBestEl.innerText = formatTimeByTotalSeconds(best.totalSeconds);
                 } else if (statBestEl) {
                     statBestEl.innerText = `--:--`;
                 }
@@ -636,8 +731,7 @@
                     podiumOrder.forEach(item => {
                         if (!item.team) return;
                         const t = item.team;
-                        const minP = String(t.minutes || 0).padStart(2, '0');
-                        const secP = String(t.seconds || 0).padStart(2, '0');
+                        const normalizedTime = getNormalizedTimeFromRecord(t);
 
                         const podiumHtml = `
                             <div class="clean-card ${item.badge} rounded-3xl p-4 flex flex-col justify-between shadow-xs relative overflow-hidden">
@@ -658,7 +752,7 @@
                                     </div>
                                     <div class="bg-slate-50 rounded-xl p-2">
                                         <span class="text-[10px] text-slate-400 font-black block">소요 시간</span>
-                                        <span class="text-sm font-black text-slate-800">${minP}:${secP}</span>
+                                        <span class="text-sm font-black text-slate-800">${formatTimeByTotalSeconds(normalizedTime.totalSeconds)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -684,15 +778,14 @@
 
                     displayTeams.forEach((t, index) => {
                         const rankNum = index + 1;
-                        const hasRecord = t.isRecorded || t.tags > 0 || t.minutes > 0 || t.seconds > 0;
+                        const hasRecord = hasRecordedScore(t);
+                        const normalizedTime = getNormalizedTimeFromRecord(t);
                         let rankBadgeClass = 'bg-slate-100 text-slate-600';
                         if (rankNum === 1) rankBadgeClass = 'bg-amber-100 text-amber-800 font-black';
                         else if (rankNum === 2) rankBadgeClass = 'bg-slate-200 text-slate-800 font-black';
                         else if (rankNum === 3) rankBadgeClass = 'bg-amber-50 text-amber-700 font-black';
 
-                        const minP = String(t.minutes || 0).padStart(2, '0');
-                        const secP = String(t.seconds || 0).padStart(2, '0');
-                        const scoreCalc = (Number(t.tags || 0) * 100) - (Number(t.minutes || 0) * 60 + Number(t.seconds || 0));
+                        const scoreCalc = (Math.max(0, toSafeInt(t.tags)) * 100) - normalizedTime.totalSeconds;
 
                         const rowHtml = `
                             <tr class="hover:bg-slate-50/80 transition-colors">
@@ -702,8 +795,8 @@
                                 <td class="py-3 px-4 font-black text-slate-900">${t.teamName}${hasRecord ? '' : ' <span class="text-[10px] font-bold text-slate-400">진행 대기</span>'}</td>
                                 <td class="py-3 px-4 text-slate-500 font-bold">${t.day}요일 / ${t.slot} (${t.detailInfo || '-'})</td>
                                 <td class="py-3 px-4 text-slate-600 font-bold truncate max-w-xs">${t.members || '-'}</td>
-                                <td class="py-3 px-4 text-center font-black text-blue-600">${t.tags || 0}개</td>
-                                <td class="py-3 px-4 text-center font-mono font-bold text-slate-700">${minP}:${secP}</td>
+                                <td class="py-3 px-4 text-center font-black text-blue-600">${Math.max(0, toSafeInt(t.tags))}개</td>
+                                <td class="py-3 px-4 text-center font-mono font-bold text-slate-700">${formatTimeByTotalSeconds(normalizedTime.totalSeconds)}</td>
                                 <td class="py-3 px-4 text-center font-black text-emerald-600">${scoreCalc > 0 ? scoreCalc : 0}점</td>
                             </tr>
                         `;
@@ -788,9 +881,16 @@
                                         <div class="flex items-center justify-center gap-1.5">
                                             <input type="number" id="min_${team.id}" min="0" max="99" value="${team.minutes || 0}" placeholder="분" class="w-14 px-2 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
                                             <span class="font-bold text-slate-400">:</span>
-                                            <input type="number" id="sec_${team.id}" min="0" max="59" value="${team.seconds || 0}" placeholder="초" class="w-14 px-2 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <input type="number" id="sec_${team.id}" min="0" max="999" value="${team.seconds || 0}" placeholder="초" class="w-14 px-2 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
                                         </div>
                                     </div>
+                                </div>
+                                <div class="mt-3">
+                                    <label class="text-[11px] font-extrabold text-blue-900 block mb-1.5">
+                                        수동 순위 (관리자 조정)
+                                    </label>
+                                    <input type="number" id="manualRank_${team.id}" min="1" value="${team.manualRank ?? ''}" placeholder="비워두면 자동 정렬" class="w-full px-3 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <p class="text-[10px] text-slate-400 font-bold mt-1">중복 순위는 태그/시간 자동 기준으로 동일 순위 그룹 내 정렬됩니다.</p>
                                 </div>
                             </div>
                         </div>
@@ -810,16 +910,20 @@
             const idx = records.findIndex(r => r.id === id);
             if (idx === -1) return;
 
-            const tags = parseInt(document.getElementById(`tags_${id}`)?.value || 0, 10);
-            const minutes = parseInt(document.getElementById(`min_${id}`)?.value || 0, 10);
-            const seconds = parseInt(document.getElementById(`sec_${id}`)?.value || 0, 10);
+            const tags = Math.max(0, toSafeInt(document.getElementById(`tags_${id}`)?.value || 0));
+            const minutes = document.getElementById(`min_${id}`)?.value || 0;
+            const seconds = document.getElementById(`sec_${id}`)?.value || 0;
+            const manualRank = normalizeManualRankValue(document.getElementById(`manualRank_${id}`)?.value);
+            const normalizedTime = normalizeTime(minutes, seconds);
 
             records[idx] = {
                 ...records[idx],
                 tags,
-                minutes,
-                seconds,
-                isRecorded: (tags > 0 || minutes > 0 || seconds > 0)
+                manualRank,
+                minutes: normalizedTime.minutes,
+                seconds: normalizedTime.seconds,
+                timeStr: formatTimeByTotalSeconds(normalizedTime.totalSeconds),
+                isRecorded: (tags > 0 || normalizedTime.totalSeconds > 0)
             };
 
             saveRecordsToStorage();
@@ -861,6 +965,14 @@
                     }
 
                     if (Array.isArray(rawList) && rawList.length > 0) {
+                        const previousManualRankMap = new Map();
+                        records.forEach(item => {
+                            const normalizedRank = normalizeManualRankValue(item.manualRank);
+                            if (normalizedRank === null) return;
+                            if (item.id) previousManualRankMap.set(String(item.id), normalizedRank);
+                            if (item.rowNum) previousManualRankMap.set(`row_${item.rowNum}`, normalizedRank);
+                        });
+
                         records = rawList.map((item, idx) => {
                             let rowNum = item.rowNum || (idx + 2);
                             let rawDay = String(item.day || item._colB || item['요일'] || '수').trim();
@@ -874,32 +986,32 @@
                             let mMembers = String(item.members || item._colG || item['참여자명단'] || item['팀원'] || '').trim();
 
                             let tagVal = item.tags ?? item._colI ?? item['수집태그'] ?? item['수집 태그 수'] ?? 0;
-                            let minVal = item.minutes ?? 0;
-                            let secVal = item.seconds ?? 0;
-
-                            const timeStr = String(item.timeStr || item._colJ || item['소요시간'] || '');
-                            if (timeStr && timeStr.includes(':')) {
-                                const parts = timeStr.split(':');
-                                minVal = parseInt(parts[0], 10) || minVal;
-                                secVal = parseInt(parts[1], 10) || secVal;
-                            }
-
-                            const parsedTags = parseInt(tagVal, 10) || 0;
-                            const parsedMin = parseInt(minVal, 10) || 0;
-                            const parsedSec = parseInt(secVal, 10) || 0;
+                            const rawTimeStr = String(item.timeStr || item._colJ || item['소요시간'] || '').trim();
+                            const parsedFromJCol = parseJColumnTime(rawTimeStr);
+                            const normalizedTime = normalizeTime(
+                                parsedFromJCol ? parsedFromJCol.minutes : item.minutes,
+                                parsedFromJCol ? parsedFromJCol.seconds : item.seconds
+                            );
+                            const parsedTags = Math.max(0, toSafeInt(tagVal));
+                            const recordId = item.id || ('row_' + rowNum);
+                            const incomingManualRank = normalizeManualRankValue(item.manualRank ?? item.manualOrder ?? item.rankOrder ?? item['수동순위']);
+                            const preservedManualRank = previousManualRankMap.get(String(recordId)) ?? previousManualRankMap.get(`row_${rowNum}`) ?? null;
+                            const manualRank = incomingManualRank !== null ? incomingManualRank : preservedManualRank;
 
                             return {
                                 rowNum: rowNum,
-                                id: item.id || ('row_' + rowNum),
+                                id: recordId,
                                 day: rawDay,
                                 slot: rawSlot,
                                 detailInfo: rawDetail,
                                 teamName: tName,
                                 members: mMembers,
                                 tags: parsedTags,
-                                minutes: parsedMin,
-                                seconds: parsedSec,
-                                isRecorded: (parsedTags > 0 || parsedMin > 0 || parsedSec > 0)
+                                manualRank: manualRank,
+                                minutes: normalizedTime.minutes,
+                                seconds: normalizedTime.seconds,
+                                timeStr: formatTimeByTotalSeconds(normalizedTime.totalSeconds),
+                                isRecorded: (parsedTags > 0 || normalizedTime.totalSeconds > 0)
                             };
                         });
 
@@ -908,7 +1020,7 @@
                         
                         // 사용자가 제어실에서 입력 중일 때는 Grid 재렌더링으로 포커스가 깨지지 않도록 방지
                         const activeEl = document.activeElement;
-                        const isEditingInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT') && /^(tags|min|sec)_/.test(activeEl.id);
+                        const isEditingInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT') && /^(tags|min|sec|manualRank)_/.test(activeEl.id);
                         
                         if (currentView === 'admin' && !isEditingInput) {
                             renderPadletGrid();
@@ -946,14 +1058,17 @@
 
         async function syncSingleRecordToAppsScript(record) {
             try {
+                const normalizedTime = getNormalizedTimeFromRecord(record);
                 const payload = {
                     action: 'updateRecord',
                     rowNum: record.rowNum,
                     id: record.id,
                     teamName: record.teamName,
                     tags: record.tags,
-                    minutes: record.minutes,
-                    seconds: record.seconds
+                    minutes: normalizedTime.minutes,
+                    seconds: normalizedTime.seconds,
+                    timeStr: formatTimeByTotalSeconds(normalizedTime.totalSeconds),
+                    totalSeconds: normalizedTime.totalSeconds
                 };
                 
                 await fetch(GAS_WEBAPP_URL, {
@@ -1054,7 +1169,27 @@
             const savedRecords = localStorage.getItem('rfid_leaderboard_records');
             if (savedRecords) {
                 try { 
-                    records = JSON.parse(savedRecords); 
+                    const parsed = JSON.parse(savedRecords);
+                    if (!Array.isArray(parsed)) {
+                        records = [];
+                        return;
+                    }
+                    records = parsed.map((item, idx) => {
+                        const normalizedTime = getNormalizedTimeFromRecord(item);
+                        const tags = Math.max(0, toSafeInt(item.tags));
+                        const rowNum = item.rowNum || (idx + 2);
+                        return {
+                            ...item,
+                            id: item.id || `row_${rowNum}`,
+                            rowNum,
+                            tags,
+                            manualRank: normalizeManualRankValue(item.manualRank),
+                            minutes: normalizedTime.minutes,
+                            seconds: normalizedTime.seconds,
+                            timeStr: formatTimeByTotalSeconds(normalizedTime.totalSeconds),
+                            isRecorded: (tags > 0 || normalizedTime.totalSeconds > 0 || Boolean(item.isRecorded))
+                        };
+                    });
                 } catch (e) { 
                     records = []; 
                 }
