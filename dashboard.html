@@ -442,6 +442,147 @@
 
         const ADMIN_PASSCODE = "1004";
         const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzPIXzqV-H5lzuT_-2z6gojyh8KqRonuzrZNPpmXBD91F6EM-Mzsu4EGMfTZDd_PA0vdw/exec";
+        const RECORDS_STORAGE_KEY = 'rfid_leaderboard_records';
+
+        function toNonNegativeInt(value, fallback = 0) {
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) return fallback;
+            return Math.max(0, Math.floor(numeric));
+        }
+
+        function parseManualRankValue(value) {
+            const rank = toNonNegativeInt(value, 0);
+            return rank > 0 ? rank : null;
+        }
+
+        function normalizeTimeParts(minutes, seconds) {
+            const totalSeconds = toNonNegativeInt(minutes, 0) * 60 + toNonNegativeInt(seconds, 0);
+            return {
+                totalSeconds,
+                minutes: Math.floor(totalSeconds / 60),
+                seconds: totalSeconds % 60,
+                timeStr: `${String(Math.floor(totalSeconds / 60)).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`
+            };
+        }
+
+        function parseTimeStringToParts(raw, fallback = null) {
+            const text = String(raw ?? '').trim();
+            if (!text) return fallback;
+
+            if (text.includes(':')) {
+                const [left, right] = text.split(':');
+                const m = toNonNegativeInt(left, 0);
+                const s = toNonNegativeInt(right, 0);
+                return normalizeTimeParts(m, s);
+            }
+
+            const minMatch = text.match(/(\d+)\s*분/);
+            const secMatch = text.match(/(\d+)\s*초/);
+            if (minMatch || secMatch) {
+                const m = minMatch ? toNonNegativeInt(minMatch[1], 0) : 0;
+                const s = secMatch ? toNonNegativeInt(secMatch[1], 0) : 0;
+                return normalizeTimeParts(m, s);
+            }
+
+            return fallback;
+        }
+
+        function getRecordTotalSeconds(record) {
+            if (!record || typeof record !== 'object') return 0;
+            if (Number.isFinite(Number(record.totalSeconds))) return toNonNegativeInt(record.totalSeconds, 0);
+            return normalizeTimeParts(record.minutes, record.seconds).totalSeconds;
+        }
+
+        function hasRecordedScore(record) {
+            if (!record) return false;
+            return Boolean(record.isRecorded || toNonNegativeInt(record.tags, 0) > 0 || getRecordTotalSeconds(record) > 0);
+        }
+
+        function escapeHtml(text) {
+            return String(text ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function normalizeRecord(raw, idx = 0, fallbackManualRank = null) {
+            const rowNum = raw.rowNum || (idx + 2);
+            let rawDay = String(raw.day || raw._colB || raw['요일'] || '수').trim();
+            if (rawDay.includes('수')) rawDay = '수';
+            else if (rawDay.includes('목')) rawDay = '목';
+            else if (rawDay.includes('금')) rawDay = '금';
+            else rawDay = '수';
+
+            const rawSlot = String(raw.slot || raw._colC || raw['부'] || raw['타임'] || '1부').trim();
+            const rawDetail = String(raw.detailInfo || raw._colD || raw['시간대'] || raw['구분'] || '').trim();
+            const teamName = String(raw.teamName || raw._colE || raw['팀이름'] || raw['팀명'] || `팀 ${idx + 1}`).trim();
+            const members = String(raw.members || raw._colG || raw['참여자명단'] || raw['팀원'] || '').trim();
+
+            const tags = toNonNegativeInt(raw.tags ?? raw._colI ?? raw['수집태그'] ?? raw['수집 태그 수'] ?? 0, 0);
+            const fromString = parseTimeStringToParts(raw.timeStr ?? raw._colJ ?? raw['소요시간'], null);
+            const fromNumeric = normalizeTimeParts(raw.minutes ?? raw.min ?? raw['분'] ?? 0, raw.seconds ?? raw.sec ?? raw['초'] ?? 0);
+            const normalizedTime = fromString || fromNumeric;
+            const manualRank = parseManualRankValue(raw.manualRank ?? raw.manualOrder ?? raw['수동등수'] ?? fallbackManualRank);
+
+            return {
+                rowNum,
+                id: String(raw.id || ('row_' + rowNum)),
+                day: rawDay,
+                slot: rawSlot,
+                detailInfo: rawDetail,
+                teamName,
+                members,
+                tags,
+                minutes: normalizedTime.minutes,
+                seconds: normalizedTime.seconds,
+                totalSeconds: normalizedTime.totalSeconds,
+                timeStr: normalizedTime.timeStr,
+                manualRank,
+                isRecorded: tags > 0 || normalizedTime.totalSeconds > 0,
+                _sourceOrder: idx
+            };
+        }
+
+        function compareAutomaticOrder(a, b) {
+            const recordedDiff = Number(hasRecordedScore(b)) - Number(hasRecordedScore(a));
+            if (recordedDiff !== 0) return recordedDiff;
+
+            const tagsDiff = toNonNegativeInt(b.tags, 0) - toNonNegativeInt(a.tags, 0);
+            if (tagsDiff !== 0) return tagsDiff;
+
+            const timeDiff = getRecordTotalSeconds(a) - getRecordTotalSeconds(b);
+            if (timeDiff !== 0) return timeDiff;
+
+            return toNonNegativeInt(a._sourceOrder, 0) - toNonNegativeInt(b._sourceOrder, 0);
+        }
+
+        function buildRankedList(list) {
+            const base = [...list]
+                .sort(compareAutomaticOrder)
+                .map((record, index) => ({ ...record, _autoRank: index + 1 }));
+
+            return base
+                .sort((a, b) => {
+                    const manualA = parseManualRankValue(a.manualRank);
+                    const manualB = parseManualRankValue(b.manualRank);
+                    const keyA = manualA ?? a._autoRank;
+                    const keyB = manualB ?? b._autoRank;
+
+                    if (keyA !== keyB) return keyA - keyB;
+                    if (manualA !== null && manualB === null) return -1;
+                    if (manualA === null && manualB !== null) return 1;
+
+                    const autoCmp = compareAutomaticOrder(a, b);
+                    if (autoCmp !== 0) return autoCmp;
+                    return toNonNegativeInt(a._sourceOrder, 0) - toNonNegativeInt(b._sourceOrder, 0);
+                })
+                .map((record, index) => ({
+                    ...record,
+                    _displayRank: parseManualRankValue(record.manualRank) ?? (index + 1)
+                }));
+        }
 
         function switchView(view) {
             currentView = view;
@@ -457,7 +598,7 @@
 
                 dashBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-black transition-all bg-white text-blue-600 shadow-xs flex items-center gap-1.5';
                 admBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all text-slate-500 hover:text-slate-900 flex items-center gap-1.5';
-                
+
                 badge.className = 'text-blue-600 font-extrabold text-xs bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100';
                 badge.innerText = 'LIVE DASHBOARD';
 
@@ -551,55 +692,23 @@
                 filtered = filtered.filter(r => r.day === currentFilterDay);
             }
 
-            const recordedTeams = filtered.filter(r => r.isRecorded || r.tags > 0 || r.minutes > 0 || r.seconds > 0);
-            const displayTeams = [...filtered].sort((a, b) => {
-                const recordedA = a.isRecorded || a.tags > 0 || a.minutes > 0 || a.seconds > 0;
-                const recordedB = b.isRecorded || b.tags > 0 || b.minutes > 0 || b.seconds > 0;
-                if (recordedA !== recordedB) return recordedB - recordedA;
-
-                const tagsDiff = Number(b.tags || 0) - Number(a.tags || 0);
-                if (tagsDiff !== 0) return tagsDiff;
-                const timeA = Number(a.minutes || 0) * 60 + Number(a.seconds || 0);
-                const timeB = Number(b.minutes || 0) * 60 + Number(b.seconds || 0);
-                return timeA - timeB;
-            });
-
-            // 정렬 기준: 1순위 수집 태그 수(내림차순) ➔ 2순위 총 소요 시간 초(오름차순)
-            recordedTeams.sort((a, b) => {
-                const tagsA = Number(a.tags || 0);
-                const tagsB = Number(b.tags || 0);
-                
-                if (tagsB !== tagsA) {
-                    return tagsB - tagsA;
-                }
-                const timeA = Number(a.minutes || 0) * 60 + Number(a.seconds || 0);
-                const timeB = Number(b.minutes || 0) * 60 + Number(b.seconds || 0);
-                return timeA - timeB;
-            });
+            const displayTeams = buildRankedList(filtered);
+            const recordedTeams = displayTeams.filter(hasRecordedScore);
 
             const statTotalEl = document.getElementById('statTotalTeams');
             if (statTotalEl) statTotalEl.innerText = `${records.length}팀`;
-            
+
             if (recordedTeams.length > 0) {
-                const maxTags = Math.max(...recordedTeams.map(t => Number(t.tags || 0)));
+                const maxTags = Math.max(...recordedTeams.map(t => toNonNegativeInt(t.tags, 0)));
                 const statMaxEl = document.getElementById('statMaxTags');
                 if (statMaxEl) statMaxEl.innerText = `${maxTags}개 / 30개`;
 
-                const times = recordedTeams.map(t => ({
-                    totalSec: Number(t.minutes || 0) * 60 + Number(t.seconds || 0),
-                    min: Number(t.minutes || 0),
-                    sec: Number(t.seconds || 0)
-                })).filter(t => t.totalSec > 0);
-
+                const bestTimeSec = Math.min(...recordedTeams.map(getRecordTotalSeconds).filter(sec => sec > 0));
                 const statBestEl = document.getElementById('statBestTime');
-                if (times.length > 0 && statBestEl) {
-                    times.sort((a, b) => a.totalSec - b.totalSec);
-                    const best = times[0];
-                    const minPad = String(best.min).padStart(2, '0');
-                    const secPad = String(best.sec).padStart(2, '0');
-                    statBestEl.innerText = `${minPad}:${secPad}`;
+                if (Number.isFinite(bestTimeSec) && statBestEl) {
+                    statBestEl.innerText = normalizeTimeParts(0, bestTimeSec).timeStr;
                 } else if (statBestEl) {
-                    statBestEl.innerText = `--:--`;
+                    statBestEl.innerText = '--:--';
                 }
 
                 const statLeaderEl = document.getElementById('statLeaderTeam');
@@ -608,16 +717,14 @@
                 const statMaxEl = document.getElementById('statMaxTags');
                 const statBestEl = document.getElementById('statBestTime');
                 const statLeaderEl = document.getElementById('statLeaderTeam');
-                if (statMaxEl) statMaxEl.innerText = `0개 / 30개`;
-                if (statBestEl) statBestEl.innerText = `--:--`;
-                if (statLeaderEl) statLeaderEl.innerText = `기록 없음`;
+                if (statMaxEl) statMaxEl.innerText = '0개 / 30개';
+                if (statBestEl) statBestEl.innerText = '--:--';
+                if (statLeaderEl) statLeaderEl.innerText = '기록 없음';
             }
 
-            // TOP 3 Podium Generation
             const podiumContainer = document.getElementById('podiumContainer');
             if (podiumContainer) {
                 podiumContainer.innerHTML = '';
-                
                 const top3 = recordedTeams.slice(0, 3);
                 if (top3.length === 0) {
                     podiumContainer.innerHTML = `
@@ -628,37 +735,35 @@
                     `;
                 } else {
                     const podiumOrder = [
-                        { rank: 2, team: top3[1], badge: 'silver-podium', label: '2위', color: 'text-slate-500' },
-                        { rank: 1, team: top3[0], badge: 'gold-podium', label: '1위 우승', color: 'text-amber-500' },
-                        { rank: 3, team: top3[2], badge: 'bronze-podium', label: '3위', color: 'text-amber-700' }
+                        { team: top3[1], badge: 'silver-podium', color: 'text-slate-500' },
+                        { team: top3[0], badge: 'gold-podium', color: 'text-amber-500' },
+                        { team: top3[2], badge: 'bronze-podium', color: 'text-amber-700' }
                     ];
 
                     podiumOrder.forEach(item => {
                         if (!item.team) return;
                         const t = item.team;
-                        const minP = String(t.minutes || 0).padStart(2, '0');
-                        const secP = String(t.seconds || 0).padStart(2, '0');
-
+                        const rankLabel = t._displayRank === 1 ? '1위 우승' : `${t._displayRank}위`;
                         const podiumHtml = `
                             <div class="clean-card ${item.badge} rounded-3xl p-4 flex flex-col justify-between shadow-xs relative overflow-hidden">
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-xs font-black px-3 py-0.5 rounded-full bg-slate-100 ${item.color}">
-                                        <i class="fa-solid fa-medal mr-1"></i>${item.label}
+                                        <i class="fa-solid fa-medal mr-1"></i>${rankLabel}
                                     </span>
-                                    <span class="text-[11px] font-extrabold text-slate-400">${t.day}요일 / ${t.slot}</span>
+                                    <span class="text-[11px] font-extrabold text-slate-400">${escapeHtml(t.day)}요일 / ${escapeHtml(t.slot)}</span>
                                 </div>
                                 <div class="mb-3">
-                                    <h3 class="text-base font-black text-slate-900 truncate">${t.teamName}</h3>
-                                    <p class="text-xs text-slate-500 font-bold truncate mt-0.5"><i class="fa-solid fa-users text-slate-400 mr-1"></i>${t.members || '팀원 미기재'}</p>
+                                    <h3 class="text-base font-black text-slate-900 truncate">${escapeHtml(t.teamName)}</h3>
+                                    <p class="text-xs text-slate-500 font-bold truncate mt-0.5"><i class="fa-solid fa-users text-slate-400 mr-1"></i>${escapeHtml(t.members || '팀원 미기재')}</p>
                                 </div>
                                 <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-center">
                                     <div class="bg-slate-50 rounded-xl p-2">
                                         <span class="text-[10px] text-slate-400 font-black block">수집 태그</span>
-                                        <span class="text-sm font-black text-blue-600">${t.tags || 0}개</span>
+                                        <span class="text-sm font-black text-blue-600">${toNonNegativeInt(t.tags, 0)}개</span>
                                     </div>
                                     <div class="bg-slate-50 rounded-xl p-2">
                                         <span class="text-[10px] text-slate-400 font-black block">소요 시간</span>
-                                        <span class="text-sm font-black text-slate-800">${minP}:${secP}</span>
+                                        <span class="text-sm font-black text-slate-800">${normalizeTimeParts(0, getRecordTotalSeconds(t)).timeStr}</span>
                                     </div>
                                 </div>
                             </div>
@@ -668,7 +773,6 @@
                 }
             }
 
-            // Ranking Table Body Generation
             const tbody = document.getElementById('rankingTableBody');
             const rankCountBadge = document.getElementById('rankCountBadge');
             const emptyState = document.getElementById('emptyState');
@@ -682,28 +786,28 @@
                     if (emptyState) emptyState.classList.add('hidden');
                     if (rankCountBadge) rankCountBadge.innerText = `총 ${displayTeams.length}개 팀`;
 
-                    displayTeams.forEach((t, index) => {
-                        const rankNum = index + 1;
-                        const hasRecord = t.isRecorded || t.tags > 0 || t.minutes > 0 || t.seconds > 0;
+                    displayTeams.forEach((team, index) => {
+                        const rankNum = team._displayRank ?? (index + 1);
+                        const hasRecord = hasRecordedScore(team);
                         let rankBadgeClass = 'bg-slate-100 text-slate-600';
                         if (rankNum === 1) rankBadgeClass = 'bg-amber-100 text-amber-800 font-black';
                         else if (rankNum === 2) rankBadgeClass = 'bg-slate-200 text-slate-800 font-black';
                         else if (rankNum === 3) rankBadgeClass = 'bg-amber-50 text-amber-700 font-black';
 
-                        const minP = String(t.minutes || 0).padStart(2, '0');
-                        const secP = String(t.seconds || 0).padStart(2, '0');
-                        const scoreCalc = (Number(t.tags || 0) * 100) - (Number(t.minutes || 0) * 60 + Number(t.seconds || 0));
+                        const totalSec = getRecordTotalSeconds(team);
+                        const scoreCalc = (toNonNegativeInt(team.tags, 0) * 100) - totalSec;
+                        const manualBadge = parseManualRankValue(team.manualRank) ? ' <span class="text-[10px] font-black text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded-md border border-violet-200 ml-1">수동</span>' : '';
 
                         const rowHtml = `
                             <tr class="hover:bg-slate-50/80 transition-colors">
                                 <td class="py-3 px-4 text-center">
-                                    <span class="inline-block w-6 h-6 rounded-lg ${rankBadgeClass} leading-6 text-xs">${rankNum}</span>
+                                    <span class="inline-block min-w-6 h-6 px-1 rounded-lg ${rankBadgeClass} leading-6 text-xs">${rankNum}</span>
                                 </td>
-                                <td class="py-3 px-4 font-black text-slate-900">${t.teamName}${hasRecord ? '' : ' <span class="text-[10px] font-bold text-slate-400">진행 대기</span>'}</td>
-                                <td class="py-3 px-4 text-slate-500 font-bold">${t.day}요일 / ${t.slot} (${t.detailInfo || '-'})</td>
-                                <td class="py-3 px-4 text-slate-600 font-bold truncate max-w-xs">${t.members || '-'}</td>
-                                <td class="py-3 px-4 text-center font-black text-blue-600">${t.tags || 0}개</td>
-                                <td class="py-3 px-4 text-center font-mono font-bold text-slate-700">${minP}:${secP}</td>
+                                <td class="py-3 px-4 font-black text-slate-900">${escapeHtml(team.teamName)}${manualBadge}${hasRecord ? '' : ' <span class="text-[10px] font-bold text-slate-400">진행 대기</span>'}</td>
+                                <td class="py-3 px-4 text-slate-500 font-bold">${escapeHtml(team.day)}요일 / ${escapeHtml(team.slot)} (${escapeHtml(team.detailInfo || '-')})</td>
+                                <td class="py-3 px-4 text-slate-600 font-bold truncate max-w-xs">${escapeHtml(team.members || '-')}</td>
+                                <td class="py-3 px-4 text-center font-black text-blue-600">${toNonNegativeInt(team.tags, 0)}개</td>
+                                <td class="py-3 px-4 text-center font-mono font-bold text-slate-700">${normalizeTimeParts(0, totalSec).timeStr}</td>
                                 <td class="py-3 px-4 text-center font-black text-emerald-600">${scoreCalc > 0 ? scoreCalc : 0}점</td>
                             </tr>
                         `;
@@ -718,7 +822,6 @@
             if (!grid) return;
 
             let filtered = [...records];
-            
             if (padletFilterDay !== 'ALL') {
                 filtered = filtered.filter(r => r.day === padletFilterDay);
             }
@@ -730,14 +833,13 @@
 
             const searchVal = document.getElementById('padletSearchInput')?.value.toLowerCase().trim() || '';
             if (searchVal) {
-                filtered = filtered.filter(r => 
-                    r.teamName.toLowerCase().includes(searchVal) || 
-                    r.members.toLowerCase().includes(searchVal)
+                filtered = filtered.filter(r =>
+                    (r.teamName || '').toLowerCase().includes(searchVal) ||
+                    (r.members || '').toLowerCase().includes(searchVal)
                 );
             }
 
             grid.innerHTML = '';
-
             if (filtered.length === 0) {
                 grid.innerHTML = `
                     <div class="col-span-full clean-card rounded-2xl p-8 text-center text-slate-400 font-bold text-xs">
@@ -749,13 +851,15 @@
             }
 
             filtered.forEach(team => {
+                const totalSeconds = getRecordTotalSeconds(team);
+                const normalized = normalizeTimeParts(0, totalSeconds);
                 const cardHtml = `
                     <div class="padlet-card rounded-3xl p-5 shadow-xs flex flex-col justify-between">
                         <div>
                             <div class="flex items-center justify-between mb-3">
                                 <div class="flex items-center gap-1.5">
-                                    <span class="px-2.5 py-1 rounded-xl bg-blue-50 text-blue-600 text-xs font-black border border-blue-100">${team.day}요일</span>
-                                    <span class="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 text-xs font-black">${team.slot}</span>
+                                    <span class="px-2.5 py-1 rounded-xl bg-blue-50 text-blue-600 text-xs font-black border border-blue-100">${escapeHtml(team.day)}요일</span>
+                                    <span class="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 text-xs font-black">${escapeHtml(team.slot)}</span>
                                 </div>
                                 <span class="text-[10px] font-extrabold ${team.isRecorded ? 'text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200' : 'text-slate-400'}">
                                     ${team.isRecorded ? '● 성적기입 완료' : '○ 미입력'}
@@ -764,32 +868,31 @@
 
                             <div class="mb-3">
                                 <label class="text-[11px] font-extrabold text-slate-400 block mb-1">팀명 (E열: 팀이름)</label>
-                                <input type="text" value="${team.teamName}" readonly class="w-full bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 font-black text-slate-900 text-sm focus:outline-none">
+                                <input type="text" value="${escapeHtml(team.teamName)}" readonly class="w-full bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 font-black text-slate-900 text-sm focus:outline-none">
                             </div>
 
                             <div class="mb-4">
                                 <label class="text-[11px] font-extrabold text-slate-400 block mb-1">팀원 명단 (G열: 참여자명단)</label>
-                                <input type="text" value="${team.members || ''}" readonly class="w-full bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 font-black text-slate-700 text-xs focus:outline-none">
+                                <input type="text" value="${escapeHtml(team.members || '')}" readonly class="w-full bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 font-black text-slate-700 text-xs focus:outline-none">
                             </div>
 
                             <div class="p-3.5 bg-blue-50/40 rounded-2xl border border-blue-100 mb-4">
-                                <div class="grid grid-cols-2 gap-3">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     <div>
-                                        <label class="text-[11px] font-extrabold text-blue-900 block mb-1.5">
-                                            수집 태그 수 (I열)
-                                        </label>
-                                        <input type="number" id="tags_${team.id}" min="0" max="30" value="${team.tags || 0}" class="w-full px-3 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-blue-600 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <label class="text-[11px] font-extrabold text-blue-900 block mb-1.5">수집 태그 수 (I열)</label>
+                                        <input type="number" id="tags_${team.id}" min="0" max="30" value="${toNonNegativeInt(team.tags, 0)}" class="w-full px-3 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-blue-600 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
                                     </div>
-                                    
                                     <div>
-                                        <label class="text-[11px] font-extrabold text-blue-900 block mb-1.5">
-                                            소요시간 (J열) (분:초)
-                                        </label>
+                                        <label class="text-[11px] font-extrabold text-blue-900 block mb-1.5">소요시간 (J열) (분:초)</label>
                                         <div class="flex items-center justify-center gap-1.5">
-                                            <input type="number" id="min_${team.id}" min="0" max="99" value="${team.minutes || 0}" placeholder="분" class="w-14 px-2 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <input type="number" id="min_${team.id}" min="0" max="999" value="${normalized.minutes}" placeholder="분" class="w-16 px-2 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
                                             <span class="font-bold text-slate-400">:</span>
-                                            <input type="number" id="sec_${team.id}" min="0" max="59" value="${team.seconds || 0}" placeholder="초" class="w-14 px-2 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <input type="number" id="sec_${team.id}" min="0" value="${normalized.seconds}" placeholder="초" class="w-16 px-2 py-2 rounded-xl bg-white border border-blue-200 text-sm font-black text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
                                         </div>
+                                    </div>
+                                    <div>
+                                        <label class="text-[11px] font-extrabold text-blue-900 block mb-1.5">수동 등수 (우선 적용)</label>
+                                        <input type="number" id="rank_${team.id}" min="0" value="${parseManualRankValue(team.manualRank) ?? ''}" placeholder="자동" class="w-full px-3 py-2 rounded-xl bg-white border border-violet-200 text-sm font-black text-violet-700 text-center focus:outline-none focus:ring-2 focus:ring-violet-500">
                                     </div>
                                 </div>
                             </div>
@@ -810,23 +913,28 @@
             const idx = records.findIndex(r => r.id === id);
             if (idx === -1) return;
 
-            const tags = parseInt(document.getElementById(`tags_${id}`)?.value || 0, 10);
-            const minutes = parseInt(document.getElementById(`min_${id}`)?.value || 0, 10);
-            const seconds = parseInt(document.getElementById(`sec_${id}`)?.value || 0, 10);
+            const tags = toNonNegativeInt(document.getElementById(`tags_${id}`)?.value, 0);
+            const minutesInput = document.getElementById(`min_${id}`)?.value;
+            const secondsInput = document.getElementById(`sec_${id}`)?.value;
+            const rankInput = document.getElementById(`rank_${id}`)?.value;
+            const normalizedTime = normalizeTimeParts(minutesInput, secondsInput);
+            const manualRank = parseManualRankValue(rankInput);
 
             records[idx] = {
                 ...records[idx],
                 tags,
-                minutes,
-                seconds,
-                isRecorded: (tags > 0 || minutes > 0 || seconds > 0)
+                minutes: normalizedTime.minutes,
+                seconds: normalizedTime.seconds,
+                totalSeconds: normalizedTime.totalSeconds,
+                timeStr: normalizedTime.timeStr,
+                manualRank,
+                isRecorded: tags > 0 || normalizedTime.totalSeconds > 0
             };
 
             saveRecordsToStorage();
             renderPadletGrid();
             renderLeaderboard();
             showToast(`'${records[idx].teamName}' 팀 점수가 저장되었습니다! (구글 시트 전송 중)`, "info");
-
             await syncSingleRecordToAppsScript(records[idx]);
         }
 
@@ -834,103 +942,69 @@
             const badgeEl = document.getElementById('teamsLoadedBadge');
             try {
                 const response = await fetch(GAS_WEBAPP_URL + '?t=' + new Date().getTime());
-                if (response.ok) {
-                    const data = await response.json();
-                    let rawList = [];
-                    if (Array.isArray(data)) {
-                        rawList = data;
-                    } else if (data && typeof data === 'object') {
-                        rawList = data.data || data.records || data.result || data.items || data.reservations || data.rows || [];
-                    }
-
-                    if (rawList.length > 0 && Array.isArray(rawList[0])) {
-                        const headers = rawList[0];
-                        rawList = rawList.slice(1).map((row, rIdx) => {
-                            const obj = {};
-                            headers.forEach((h, i) => { obj[h] = row[i]; });
-                            obj['rowNum'] = rIdx + 2;
-                            obj['_colB'] = row[1];
-                            obj['_colC'] = row[2];
-                            obj['_colD'] = row[3];
-                            obj['_colE'] = row[4];
-                            obj['_colG'] = row[6];
-                            obj['_colI'] = row[8];
-                            obj['_colJ'] = row[9];
-                            return obj;
-                        });
-                    }
-
-                    if (Array.isArray(rawList) && rawList.length > 0) {
-                        records = rawList.map((item, idx) => {
-                            let rowNum = item.rowNum || (idx + 2);
-                            let rawDay = String(item.day || item._colB || item['요일'] || '수').trim();
-                            if (rawDay.includes('수')) rawDay = '수';
-                            else if (rawDay.includes('목')) rawDay = '목';
-                            else if (rawDay.includes('금')) rawDay = '금';
-
-                            let rawSlot = String(item.slot || item._colC || item['부'] || item['타임'] || '1부').trim();
-                            let rawDetail = String(item.detailInfo || item._colD || item['시간대'] || item['구분'] || '').trim();
-                            let tName = String(item.teamName || item._colE || item['팀이름'] || item['팀명'] || `팀 ${idx + 1}`).trim();
-                            let mMembers = String(item.members || item._colG || item['참여자명단'] || item['팀원'] || '').trim();
-
-                            let tagVal = item.tags ?? item._colI ?? item['수집태그'] ?? item['수집 태그 수'] ?? 0;
-                            let minVal = item.minutes ?? 0;
-                            let secVal = item.seconds ?? 0;
-
-                            const timeStr = String(item.timeStr || item._colJ || item['소요시간'] || '');
-                            if (timeStr && timeStr.includes(':')) {
-                                const parts = timeStr.split(':');
-                                minVal = parseInt(parts[0], 10) || minVal;
-                                secVal = parseInt(parts[1], 10) || secVal;
-                            }
-
-                            const parsedTags = parseInt(tagVal, 10) || 0;
-                            const parsedMin = parseInt(minVal, 10) || 0;
-                            const parsedSec = parseInt(secVal, 10) || 0;
-
-                            return {
-                                rowNum: rowNum,
-                                id: item.id || ('row_' + rowNum),
-                                day: rawDay,
-                                slot: rawSlot,
-                                detailInfo: rawDetail,
-                                teamName: tName,
-                                members: mMembers,
-                                tags: parsedTags,
-                                minutes: parsedMin,
-                                seconds: parsedSec,
-                                isRecorded: (parsedTags > 0 || parsedMin > 0 || parsedSec > 0)
-                            };
-                        });
-
-                        saveRecordsToStorage();
-                        renderLeaderboard();
-                        
-                        // 사용자가 제어실에서 입력 중일 때는 Grid 재렌더링으로 포커스가 깨지지 않도록 방지
-                        const activeEl = document.activeElement;
-                        const isEditingInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT') && /^(tags|min|sec)_/.test(activeEl.id);
-                        
-                        if (currentView === 'admin' && !isEditingInput) {
-                            renderPadletGrid();
-                        }
-                        
-                        if (badgeEl) {
-                            badgeEl.classList.remove('hidden');
-                            badgeEl.innerText = `시트 연동 완료 (${records.length}팀)`;
-                        }
-                    } else {
-                        if (data && data.capacities) {
-                            if (badgeEl) {
-                                badgeEl.classList.remove('hidden');
-                                badgeEl.innerText = 'GAS 응답에 예약 행 없음';
-                            }
-                            if (!isSilent) showToast("GAS가 예약 행 대신 수용 인원 정보만 반환하고 있습니다. doGet에서 예약 행을 반환해 주세요.", "warning");
-                        } else if (!isSilent) {
-                            showToast("구글 시트에서 불러올 예약 내역이 없습니다.", "warning");
-                        }
-                    }
-                } else {
+                if (!response.ok) {
                     if (!isSilent) showToast(`연동 실패 (응답 코드: ${response.status})`, "warning");
+                    return;
+                }
+
+                const data = await response.json();
+                let rawList = [];
+                if (Array.isArray(data)) {
+                    rawList = data;
+                } else if (data && typeof data === 'object') {
+                    rawList = data.data || data.records || data.result || data.items || data.reservations || data.rows || [];
+                }
+
+                if (rawList.length > 0 && Array.isArray(rawList[0])) {
+                    const headers = rawList[0];
+                    rawList = rawList.slice(1).map((row, rIdx) => {
+                        const obj = {};
+                        headers.forEach((h, i) => { obj[h] = row[i]; });
+                        obj.rowNum = rIdx + 2;
+                        obj._colB = row[1];
+                        obj._colC = row[2];
+                        obj._colD = row[3];
+                        obj._colE = row[4];
+                        obj._colG = row[6];
+                        obj._colI = row[8];
+                        obj._colJ = row[9];
+                        return obj;
+                    });
+                }
+
+                if (Array.isArray(rawList) && rawList.length > 0) {
+                    const prevManualRankById = new Map(records.map(r => [String(r.id), parseManualRankValue(r.manualRank)]));
+                    records = rawList.map((item, idx) => {
+                        const rowNum = item.rowNum || (idx + 2);
+                        const id = String(item.id || ('row_' + rowNum));
+                        const fallbackManualRank = prevManualRankById.get(id) ?? null;
+                        return normalizeRecord({ ...item, id, rowNum }, idx, fallbackManualRank);
+                    });
+
+                    saveRecordsToStorage();
+                    renderLeaderboard();
+
+                    const activeEl = document.activeElement;
+                    const isEditingInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT') && /^(tags|min|sec|rank)_/.test(activeEl.id);
+                    if (currentView === 'admin' && !isEditingInput) {
+                        renderPadletGrid();
+                    }
+
+                    if (badgeEl) {
+                        badgeEl.classList.remove('hidden');
+                        badgeEl.innerText = `시트 연동 완료 (${records.length}팀)`;
+                    }
+                    return;
+                }
+
+                if (data && data.capacities) {
+                    if (badgeEl) {
+                        badgeEl.classList.remove('hidden');
+                        badgeEl.innerText = 'GAS 응답에 예약 행 없음';
+                    }
+                    if (!isSilent) showToast("GAS가 예약 행 대신 수용 인원 정보만 반환하고 있습니다. doGet에서 예약 행을 반환해 주세요.", "warning");
+                } else if (!isSilent) {
+                    showToast("구글 시트에서 불러올 예약 내역이 없습니다.", "warning");
                 }
             } catch (err) {
                 console.error("GAS 연동 오류:", err);
@@ -946,23 +1020,28 @@
 
         async function syncSingleRecordToAppsScript(record) {
             try {
+                const totalSeconds = getRecordTotalSeconds(record);
+                const normalizedTime = normalizeTimeParts(0, totalSeconds);
                 const payload = {
                     action: 'updateRecord',
                     rowNum: record.rowNum,
                     id: record.id,
                     teamName: record.teamName,
-                    tags: record.tags,
-                    minutes: record.minutes,
-                    seconds: record.seconds
+                    tags: toNonNegativeInt(record.tags, 0),
+                    minutes: normalizedTime.minutes,
+                    seconds: normalizedTime.seconds,
+                    timeStr: normalizedTime.timeStr,
+                    totalSeconds,
+                    manualRank: parseManualRankValue(record.manualRank)
                 };
-                
+
                 await fetch(GAS_WEBAPP_URL, {
                     method: 'POST',
                     mode: 'no-cors',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify(payload)
                 });
-                
+
                 showToast(`'${record.teamName}' 구글 시트 반영 완료!`, "success");
             } catch (err) {
                 console.error("단일 기록 동기화 오류:", err);
@@ -979,7 +1058,6 @@
         }
 
         function setupPeriodicAutoRefresh() {
-            // 5초마다 구글 시트 최신 예약 및 성적 자동 수신 (모든 기기 실시간 동기화)
             setInterval(() => {
                 fetchDataFromAppsScript(true);
             }, 5000);
@@ -989,7 +1067,7 @@
             const savedMsg = localStorage.getItem('rfid_ticker_message');
             const defaultMsg = "🏆 1위 우승팀에게는 특별 상품이 지급됩니다! | ⏱️ 소요 시간과 태그 수집 개수로 최종 순위가 결정됩니다. | 출전 팀은 안내된 시간에 집결해 주세요.";
             const msgToUse = savedMsg || defaultMsg;
-            
+
             const marqueeEl = document.getElementById('marqueeText');
             if (marqueeEl) marqueeEl.innerText = msgToUse;
 
@@ -1009,7 +1087,6 @@
             localStorage.setItem('rfid_ticker_message', newMsg);
             const marqueeEl = document.getElementById('marqueeText');
             if (marqueeEl) marqueeEl.innerText = newMsg;
-
             showToast("전광판 자막 문구가 업데이트되었습니다!", "success");
         }
 
@@ -1051,27 +1128,28 @@
         }
 
         function loadFromStorage() {
-            const savedRecords = localStorage.getItem('rfid_leaderboard_records');
-            if (savedRecords) {
-                try { 
-                    records = JSON.parse(savedRecords); 
-                } catch (e) { 
-                    records = []; 
-                }
-            } else {
+            const savedRecords = localStorage.getItem(RECORDS_STORAGE_KEY);
+            if (!savedRecords) {
+                records = [];
+                return;
+            }
+            try {
+                const parsed = JSON.parse(savedRecords);
+                records = Array.isArray(parsed) ? parsed.map((record, idx) => normalizeRecord(record, idx, parseManualRankValue(record?.manualRank))) : [];
+            } catch (e) {
                 records = [];
             }
         }
 
         function saveRecordsToStorage() {
-            localStorage.setItem('rfid_leaderboard_records', JSON.stringify(records));
+            localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(records));
         }
 
         function toggleTvMode() {
             isTvMode = !isTvMode;
             const body = document.body;
             const badge = document.getElementById('tvExitBadge');
-            
+
             if (isTvMode) {
                 body.classList.add('tv-mode-active');
                 if (badge) badge.classList.remove('hidden');
@@ -1090,11 +1168,9 @@
             const toast = document.getElementById('toastNotification');
             const toastMsg = document.getElementById('toastMessage');
             const toastIcon = document.getElementById('toastIcon');
-
             if (!toast || !toastMsg || !toastIcon) return;
 
             toastMsg.innerText = message;
-            
             if (type === 'success') {
                 toastIcon.className = 'fa-solid fa-circle-check text-emerald-400 text-base';
             } else if (type === 'warning') {
@@ -1105,7 +1181,6 @@
 
             toast.classList.remove('translate-y-20', 'opacity-0');
             toast.classList.add('translate-y-0', 'opacity-100');
-
             setTimeout(() => {
                 toast.classList.remove('translate-y-0', 'opacity-100');
                 toast.classList.add('translate-y-20', 'opacity-0');
